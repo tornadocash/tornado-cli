@@ -1,4 +1,4 @@
-#!/usr/bin/env NODE_OPTIONS=--no-warnings node
+#!/usr/bin/env node
 // Temporary demo client
 // Works both in browser and node.js
 
@@ -24,7 +24,6 @@ let MERKLE_TREE_HEIGHT, ETH_AMOUNT, TOKEN_AMOUNT, PRIVATE_KEY
 /** Whether we are in a browser or node.js */
 const inBrowser = (typeof window !== 'undefined')
 let isLocalRPC = false
-const networks = { '1': 'mainnet', '42': 'kovan' }
 
 /** Generate random number of specified byte length */
 const rbigint = nbytes => snarkjs.bigInt.leBuff2int(crypto.randomBytes(nbytes))
@@ -346,25 +345,28 @@ function getCurrentNetworkName() {
 }
 
 function calculateFee({ gasPrices, currency, amount, refund, ethPrices, relayerServiceFee, decimals }) {
-
-  const total = toBN(fromDecimals({ amount, decimals }))
-  const fee = relayerServiceFee
-  const decimalsPoint = Math.floor(fee) === fee ? 0 : fee.toString().split('.')[1].length
+  const decimalsPoint = Math.floor(relayerServiceFee) === Number(relayerServiceFee) ?
+    0 :
+    relayerServiceFee.toString().split('.')[1].length
   const roundDecimal = 10 ** decimalsPoint
-  relayerServiceFee = total.mul(toBN(fee * roundDecimal)).div(toBN(roundDecimal * 100))
-  const ethFee = toBN(toWei(gasPrices.fast.toString(), 'gwei')).mul(toBN('500000'))
-
+  const total = toBN(fromDecimals({ amount, decimals }))
+  const feePercent = total.mul(toBN(relayerServiceFee * roundDecimal)).div(toBN(roundDecimal * 100))
+  const expense = toBN(toWei(gasPrices.fast.toString(), 'gwei')).mul(toBN(5e5))
+  let desiredFee
   switch (currency) {
   case 'eth': {
-    return ethFee.add(relayerServiceFee)
+    desiredFee = expense.add(feePercent)
+    break
   }
   default: {
-    const tokenFee = ethFee
+    desiredFee = expense.add(toBN(refund))
       .mul(toBN(10 ** decimals))
       .div(toBN(ethPrices[currency]))
-    return tokenFee.add(relayerServiceFee)
+    desiredFee = desiredFee.add(feePercent)
+    break
   }
   }
+  return desiredFee
 }
 
 /**

@@ -1,3 +1,5 @@
+# Warning! 
+Current cli version doesn't support [Anonymity Mining](https://tornado-cash.medium.com/tornado-cash-governance-proposal-a55c5c7d0703)
 
 ### Kovan, Mainnet
 1. Add `PRIVATE_KEY` to `.env` file

@@ -67,7 +67,76 @@ module.exports = {
         tokenAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
         symbol: 'USDT',
         decimals: 6
-      }
+      },
+      proxy: '0x905b63Fff465B9fFBF41DeA908CEb12478ec7601',
+    },
+    netId5: {
+      eth: {
+        instanceAddress: {
+          '0.1': '0x6Bf694a291DF3FeC1f7e69701E3ab6c592435Ae7',
+          '1': '0x3aac1cC67c2ec5Db4eA850957b967Ba153aD6279',
+          '10': '0x723B78e67497E85279CB204544566F4dC5d2acA0',
+          '100': '0x0E3A09dDA6B20aFbB34aC7cD4A6881493f3E7bf7'
+        },
+        symbol: 'ETH',
+        decimals: 18
+      },
+      dai: {
+        instanceAddress: {
+          '100': '0xdf2d3cC5F361CF95b3f62c4bB66deFe3FDE47e3D',
+          '1000': '0xD96291dFa35d180a71964D0894a1Ae54247C4ccD',
+          '10000': '0xb192794f72EA45e33C3DF6fe212B9c18f6F45AE3',
+          '100000': undefined
+        },
+        tokenAddress: '0x4F96Fe3b7A6Cf9725f59d353F723c1bDb64CA6Aa',
+        symbol: 'DAI',
+        decimals: 18
+      },
+      cdai: {
+        instanceAddress: {
+          '5000': '0x6Fc9386ABAf83147b3a89C36D422c625F44121C8',
+          '50000': '0x7182EA067e0f050997444FCb065985Fd677C16b6',
+          '500000': '0xC22ceFd90fbd1FdEeE554AE6Cc671179BC3b10Ae',
+          '5000000': undefined
+        },
+        tokenAddress: '0xe7bc397DBd069fC7d0109C0636d06888bb50668c',
+        symbol: 'cDAI',
+        decimals: 8
+      },
+      usdc: {
+        instanceAddress: {
+          '100': '0x137E2B6d185018e7f09f6cf175a970e7fC73826C',
+          '1000': '0xcC7f1633A5068E86E3830e692e3e3f8f520525Af',
+          '10000': '0x28C8f149a0ab8A9bdB006B8F984fFFCCE52ef5EF',
+          '100000': undefined
+        },
+        tokenAddress: '0x75B0622Cec14130172EaE9Cf166B92E5C112FaFF',
+        symbol: 'USDC',
+        decimals: 6
+      },
+      cusdc: {
+        instanceAddress: {
+          '5000': '0xc0648F28ABA385c8a1421Bbf1B59e3c474F89cB0',
+          '50000': '0x0C53853379c6b1A7B74E0A324AcbDD5Eabd4981D',
+          '500000': '0xf84016A0E03917cBe700D318EB1b7a53e6e3dEe1',
+          '5000000': undefined
+        },
+        tokenAddress: '0xcfC9bB230F00bFFDB560fCe2428b4E05F3442E35',
+        symbol: 'cUSDC',
+        decimals: 8
+      },
+      usdt: {
+        instanceAddress: {
+          '100': '0x327853Da7916a6A0935563FB1919A48843036b42',
+          '1000': '0x531AA4DF5858EA1d0031Dad16e3274609DE5AcC0',
+          '10000': '0x0958275F0362cf6f07D21373aEE0cf37dFe415dD',
+          '100000': '0x14aEd24B67EaF3FF28503eB92aeb217C47514364'
+        },
+        tokenAddress: '0x03c5F29e9296006876d8DF210BCFfD7EA5Db1Cf1',
+        symbol: 'USDT',
+        decimals: 6
+      },
+      proxy: '0x905b63Fff465B9fFBF41DeA908CEb12478ec7601',
     },
     netId42: {
       eth: {
@@ -134,7 +203,8 @@ module.exports = {
         tokenAddress: '0x03c5F29e9296006876d8DF210BCFfD7EA5Db1Cf1',
         symbol: 'USDT',
         decimals: 6
-      }
+      },
+      proxy: '0x26Dd6E44a7090a2598e280CBD1F5E6034F2edD04',
     }
   }
 }

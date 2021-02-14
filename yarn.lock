@@ -758,6 +758,16 @@ circom@0.0.35:
     typedarray-to-buffer "^3.1.5"
     web3 "^1.2.11"
 
+"circomlib@git+https://github.com/tornadocash/circomlib.git#5beb6aee94923052faeecea40135d45b6ce6172c":
+  version "0.0.20"
+  resolved "git+https://github.com/tornadocash/circomlib.git#5beb6aee94923052faeecea40135d45b6ce6172c"
+  dependencies:
+    blake-hash "^1.1.0"
+    blake2b "^2.1.3"
+    snarkjs "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5"
+    typedarray-to-buffer "^3.1.5"
+    web3 "^1.2.11"
+
 class-is@^1.1.0:
   version "1.1.0"
   resolved "https://registry.npmjs.org/class-is/-/class-is-1.1.0.tgz#9d3c0fba0440d211d843cec3dedfa48055005825"
@@ -1637,6 +1647,14 @@ find-up@^3.0.0:
   integrity sha512-1yD6RmLI1XBfxugvORwlck6f75tYL+iR0jqwsOrOxMZyGYqUuDhJ0l4AXdO1iX/FTs9cBAMEk1gWSEx1kSbylg==
   dependencies:
     locate-path "^3.0.0"
+
+fixed-merkle-tree@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/fixed-merkle-tree/-/fixed-merkle-tree-0.5.0.tgz#401cdcf3d670c1e18bc7d3a8e81322eb1b27c1d1"
+  integrity sha512-egOy12EzVATX3Ru2/SLtnWprVpy/sbPCt/MbeG3ANB28jykWLEYj7EjinFnOxtsgR3gTHU6xYXX53yMn/bZqyw==
+  dependencies:
+    circomlib "git+https://github.com/tornadocash/circomlib.git#5beb6aee94923052faeecea40135d45b6ce6172c"
+    snarkjs "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5"
 
 flat-cache@^2.0.1:
   version "2.0.1"

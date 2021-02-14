@@ -1,8 +1,14 @@
 {
-  "name": "cli-tornado",
+  "name": "tornado-cli",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "core.js",
+  "files": [
+    "config.js",
+    "core.js",
+    "build",
+    "lib"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -17,7 +23,8 @@
     "gas-price-oracle": "^0.2.2",
     "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5",
     "web3": "^1.2.8",
-    "websnark": "git+https://github.com/tornadocash/websnark.git#4c0af6a8b65aabea3c09f377f63c44e7a58afa6d"
+    "websnark": "git+https://github.com/tornadocash/websnark.git#4c0af6a8b65aabea3c09f377f63c44e7a58afa6d",
+    "fixed-merkle-tree": "^0.5.0"
   },
   "devDependencies": {
     "eslint": "^7.0.0"

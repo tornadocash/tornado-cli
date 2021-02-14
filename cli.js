@@ -3,40 +3,22 @@
 // Works both in browser and node.js
 
 require('dotenv').config()
-const fs = require('fs')
+
 const axios = require('axios')
 const assert = require('assert')
-const snarkjs = require('snarkjs')
-const crypto = require('crypto')
-const circomlib = require('circomlib')
-const bigInt = snarkjs.bigInt
-const merkleTree = require('./lib/MerkleTree')
 const Web3 = require('web3')
-const buildGroth16 = require('websnark/src/groth16')
-const websnarkUtils = require('websnark/src/utils')
+
 const { toWei, fromWei, toBN, BN } = require('web3-utils')
 const config = require('./config')
 const program = require('commander')
 const { GasPriceOracle } = require('gas-price-oracle')
 
-let web3, tornado, mixerContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId
+const { initialize, createDeposit, generateProof, toHex, rbigint, bigInt } = require('./core')
+
+let web3, tornado, mixerContract, tornadoInstance, erc20, senderAccount, netId
 let MERKLE_TREE_HEIGHT, ETH_AMOUNT, TOKEN_AMOUNT, PRIVATE_KEY
 
-/** Whether we are in a browser or node.js */
-const inBrowser = typeof window !== 'undefined'
 let isLocalRPC = false
-
-/** Generate random number of specified byte length */
-const rbigint = (nbytes) => snarkjs.bigInt.leBuff2int(crypto.randomBytes(nbytes))
-
-/** Compute pedersen hash */
-const pedersenHash = (data) => circomlib.babyJub.unpackPoint(circomlib.pedersenHash.hash(data))[0]
-
-/** BigNumber to hex string of specified length */
-function toHex(number, length = 32) {
-  const str = number instanceof Buffer ? number.toString('hex') : bigInt(number).toString(16)
-  return '0x' + str.padStart(length * 2, '0')
-}
 
 /** Display ETH account balance */
 async function printETHBalance({ address, name }) {
@@ -48,19 +30,6 @@ async function printERC20Balance({ address, name, tokenAddress }) {
   const erc20ContractJson = require('./build/contracts/ERC20Mock.json')
   erc20 = tokenAddress ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : erc20
   console.log(`${name} Token Balance is`, web3.utils.fromWei(await erc20.methods.balanceOf(address).call()))
-}
-
-/**
- * Create deposit object from secret and nullifier
- */
-function createDeposit({ nullifier, secret }) {
-  const deposit = { nullifier, secret }
-  deposit.preimage = Buffer.concat([deposit.nullifier.leInt2Buff(31), deposit.secret.leInt2Buff(31)])
-  deposit.commitment = pedersenHash(deposit.preimage)
-  deposit.commitmentHex = toHex(deposit.commitment)
-  deposit.nullifierHash = pedersenHash(deposit.nullifier.leInt2Buff(31))
-  deposit.nullifierHex = toHex(deposit.nullifierHash)
-  return deposit
 }
 
 /**
@@ -112,96 +81,16 @@ async function deposit({ currency, amount }) {
 }
 
 /**
- * Generate merkle tree for a deposit.
- * Download deposit events from the tornado, reconstructs merkle tree, finds our deposit leaf
- * in it and generates merkle proof
- * @param deposit Deposit object
- */
-async function generateMerkleProof(deposit) {
-  let leafIndex = -1
-  // Get all deposit events from smart contract and assemble merkle tree from them
-  const events = await mixerContract.getPastEvents('Deposit', {
-    fromBlock: 0,
-    toBlock: 'latest'
-  })
-
-  const leaves = events
-    .sort((a, b) => a.returnValues.leafIndex - b.returnValues.leafIndex) // Sort events in chronological order
-    .map((e) => {
-      const index = toBN(e.returnValues.leafIndex).toNumber()
-
-      if (toBN(e.returnValues.commitment).eq(toBN(deposit.commitmentHex))) {
-        leafIndex = index
-      }
-      return e.returnValues.commitment.toString(10)
-    })
-  const tree = new merkleTree(MERKLE_TREE_HEIGHT, leaves)
-
-  // Validate that our data is correct
-  const root = await tree.root()
-  const isValidRoot = await mixerContract.methods.isKnownRoot(toHex(root)).call()
-  const isSpent = await mixerContract.methods.isSpent(toHex(deposit.nullifierHash)).call()
-  assert(isValidRoot === true, 'Merkle tree is corrupted')
-  assert(isSpent === false, 'The note is already spent')
-  assert(leafIndex >= 0, 'The deposit is not found in the tree')
-
-  // Compute merkle proof of our commitment
-  return tree.path(leafIndex)
-}
-
-/**
- * Generate SNARK proof for withdrawal
- * @param deposit Deposit object
- * @param recipient Funds recipient
- * @param relayer Relayer address
- * @param fee Relayer fee
- * @param refund Receive ether for exchanged tokens
- */
-async function generateProof({ deposit, recipient, relayerAddress = 0, fee = 0, refund = 0 }) {
-  // Compute merkle proof of our commitment
-  const { root, path_elements, path_index } = await generateMerkleProof(deposit)
-
-  // Prepare circuit input
-  const input = {
-    // Public snark inputs
-    root: root,
-    nullifierHash: deposit.nullifierHash,
-    recipient: bigInt(recipient),
-    relayer: bigInt(relayerAddress),
-    fee: bigInt(fee),
-    refund: bigInt(refund),
-
-    // Private snark inputs
-    nullifier: deposit.nullifier,
-    secret: deposit.secret,
-    pathElements: path_elements,
-    pathIndices: path_index
-  }
-
-  console.log('Generating SNARK proof')
-  console.time('Proof time')
-  const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
-  const { proof } = websnarkUtils.toSolidityInput(proofData)
-  console.timeEnd('Proof time')
-
-  const args = [
-    toHex(input.root),
-    toHex(input.nullifierHash),
-    toHex(input.recipient, 20),
-    toHex(input.relayer, 20),
-    toHex(input.fee),
-    toHex(input.refund)
-  ]
-
-  return { proof, args }
-}
-
-/**
  * Do an ETH withdrawal
  * @param noteString Note to withdraw
  * @param recipient Recipient address
  */
 async function withdraw({ deposit, currency, amount, recipient, relayerURL, refund = '0' }) {
+  // Get all deposit events from smart contract and assemble merkle tree from them
+  const events = await mixerContract.getPastEvents('Deposit', {
+    fromBlock: 0,
+    toBlock: 'latest'
+  })
   if (currency === 'eth' && refund !== '0') {
     throw new Error('The ETH purchase is supposted to be 0 for ETH withdrawals')
   }
@@ -237,8 +126,16 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, refu
       recipient,
       relayerAddress: rewardAccount,
       fee,
-      refund
+      refund,
+      events
     })
+
+    // Validate that our data is correct
+    // const isValidRoot = await mixerContract.methods.isKnownRoot(toHex(root)).call()
+    // const isSpent = await mixerContract.methods.isSpent(toHex(deposit.nullifierHash)).call()
+    // assert(isValidRoot === true, 'Merkle tree is corrupted')
+    // assert(isSpent === false, 'The note is already spent')
+    // assert(leafIndex >= 0, 'The deposit is not found in the tree')
 
     console.log('Sending withdraw transaction through relay')
     try {
@@ -261,7 +158,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, refu
     }
   } else {
     // using private key
-    const { proof, args } = await generateProof({ deposit, recipient, refund })
+    const { proof, args } = await generateProof({ deposit, recipient, refund, events })
 
     console.log('Submitting withdraw transaction')
     await tornado.methods
@@ -564,45 +461,27 @@ async function loadWithdrawalData({ amount, currency, deposit }) {
  */
 async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
   let contractJson, mixerJson, erc20ContractJson, erc20tornadoJson, tornadoAddress, tokenAddress
-  // TODO do we need this? should it work in browser really?
-  if (inBrowser) {
-    // Initialize using injected web3 (Metamask)
-    // To assemble web version run `npm run browserify`
-    web3 = new Web3(window.web3.currentProvider, null, {
-      transactionConfirmationBlocks: 1
-    })
-    contractJson = await (await fetch('build/contracts/TornadoProxy.abi.json')).json()
-    mixerJson = await (await fetch('build/contracts/Mixer.abi.json')).json()
-    circuit = await (await fetch('build/circuits/tornado.json')).json()
-    proving_key = await (await fetch('build/circuits/tornadoProvingKey.bin')).arrayBuffer()
-    MERKLE_TREE_HEIGHT = 20
-    ETH_AMOUNT = 1e18
-    TOKEN_AMOUNT = 1e19
-    senderAccount = (await web3.eth.getAccounts())[0]
+
+  web3 = new Web3(rpc, null, { transactionConfirmationBlocks: 1 })
+  contractJson = require('./build/contracts/TornadoProxy.abi.json')
+  mixerJson = require('./build/contracts/Mixer.abi.json')
+  MERKLE_TREE_HEIGHT = process.env.MERKLE_TREE_HEIGHT || 20
+  await initialize({ merkleTreeHeight: MERKLE_TREE_HEIGHT })
+
+  ETH_AMOUNT = process.env.ETH_AMOUNT
+  TOKEN_AMOUNT = process.env.TOKEN_AMOUNT
+  PRIVATE_KEY = process.env.PRIVATE_KEY
+  if (PRIVATE_KEY) {
+    const account = web3.eth.accounts.privateKeyToAccount('0x' + PRIVATE_KEY)
+    web3.eth.accounts.wallet.add('0x' + PRIVATE_KEY)
+    web3.eth.defaultAccount = account.address
+    senderAccount = account.address
   } else {
-    // Initialize from local node
-    web3 = new Web3(rpc, null, { transactionConfirmationBlocks: 1 })
-    contractJson = require('./build/contracts/TornadoProxy.abi.json')
-    mixerJson = require('./build/contracts/Mixer.abi.json')
-    circuit = require('./build/circuits/tornado.json')
-    proving_key = fs.readFileSync('build/circuits/tornadoProvingKey.bin').buffer
-    MERKLE_TREE_HEIGHT = process.env.MERKLE_TREE_HEIGHT || 20
-    ETH_AMOUNT = process.env.ETH_AMOUNT
-    TOKEN_AMOUNT = process.env.TOKEN_AMOUNT
-    PRIVATE_KEY = process.env.PRIVATE_KEY
-    if (PRIVATE_KEY) {
-      const account = web3.eth.accounts.privateKeyToAccount('0x' + PRIVATE_KEY)
-      web3.eth.accounts.wallet.add('0x' + PRIVATE_KEY)
-      web3.eth.defaultAccount = account.address
-      senderAccount = account.address
-    } else {
-      console.log('Warning! PRIVATE_KEY not found. Please provide PRIVATE_KEY in .env file if you deposit')
-    }
-    erc20ContractJson = require('./build/contracts/ERC20Mock.json')
-    erc20tornadoJson = require('./build/contracts/ERC20Tornado.json')
+    console.log('Warning! PRIVATE_KEY not found. Please provide PRIVATE_KEY in .env file if you deposit')
   }
-  // groth16 initialises a lot of Promises that will never be resolved, that's why we need to use process.exit to terminate the CLI
-  groth16 = await buildGroth16()
+  erc20ContractJson = require('./build/contracts/ERC20Mock.json')
+  erc20tornadoJson = require('./build/contracts/ERC20Tornado.json')
+
   netId = await web3.eth.net.getId()
   if (noteNetId && Number(noteNetId) !== netId) {
     throw new Error('This note is for a different network. Specify the --rpc option explicitly')
@@ -633,135 +512,119 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
 }
 
 async function main() {
-  if (inBrowser) {
-    const instance = { currency: 'eth', amount: '0.1' }
-    await init(instance)
-    window.deposit = async () => {
-      await deposit(instance)
-    }
-    window.withdraw = async () => {
-      const noteString = prompt('Enter the note to withdraw')
-      const recipient = (await web3.eth.getAccounts())[0]
-
+  program
+    .option('-r, --rpc <URL>', 'The RPC, CLI should interact with', 'http://localhost:8545')
+    .option('-R, --relayer <URL>', 'Withdraw via relayer')
+  program
+    .command('deposit <currency> <amount>')
+    .description(
+      'Submit a deposit of specified currency and amount from default eth account and return the resulting note. The currency is one of (ETH|DAI|cDAI|USDC|cUSDC|USDT). The amount depends on currency, see config.js file or visit https://tornado.cash.'
+    )
+    .action(async (currency, amount) => {
+      currency = currency.toLowerCase()
+      await init({ rpc: program.rpc, currency, amount })
+      await deposit({ currency, amount })
+    })
+  program
+    .command('withdraw <note> <recipient> [ETH_purchase]')
+    .description(
+      'Withdraw a note to a recipient account using relayer or specified private key. You can exchange some of your deposit`s tokens to ETH during the withdrawal by specifing ETH_purchase (e.g. 0.01) to pay for gas in future transactions. Also see the --relayer option.'
+    )
+    .action(async (noteString, recipient, refund) => {
       const { currency, amount, netId, deposit } = parseNote(noteString)
-      await init({ noteNetId: netId, currency, amount })
-      await withdraw({ deposit, currency, amount, recipient })
-    }
-  } else {
-    program
-      .option('-r, --rpc <URL>', 'The RPC, CLI should interact with', 'http://localhost:8545')
-      .option('-R, --relayer <URL>', 'Withdraw via relayer')
-    program
-      .command('deposit <currency> <amount>')
-      .description(
-        'Submit a deposit of specified currency and amount from default eth account and return the resulting note. The currency is one of (ETH|DAI|cDAI|USDC|cUSDC|USDT). The amount depends on currency, see config.js file or visit https://tornado.cash.'
-      )
-      .action(async (currency, amount) => {
-        currency = currency.toLowerCase()
-        await init({ rpc: program.rpc, currency, amount })
-        await deposit({ currency, amount })
+      await init({ rpc: program.rpc, noteNetId: netId, currency, amount })
+      await withdraw({
+        deposit,
+        currency,
+        amount,
+        recipient,
+        refund,
+        relayerURL: program.relayer
       })
-    program
-      .command('withdraw <note> <recipient> [ETH_purchase]')
-      .description(
-        'Withdraw a note to a recipient account using relayer or specified private key. You can exchange some of your deposit`s tokens to ETH during the withdrawal by specifing ETH_purchase (e.g. 0.01) to pay for gas in future transactions. Also see the --relayer option.'
-      )
-      .action(async (noteString, recipient, refund) => {
-        const { currency, amount, netId, deposit } = parseNote(noteString)
-        await init({ rpc: program.rpc, noteNetId: netId, currency, amount })
-        await withdraw({
-          deposit,
-          currency,
-          amount,
-          recipient,
-          refund,
-          relayerURL: program.relayer
-        })
-      })
-    program
-      .command('balance <address> [token_address]')
-      .description('Check ETH and ERC20 balance')
-      .action(async (address, tokenAddress) => {
-        await init({ rpc: program.rpc })
-        await printETHBalance({ address, name: '' })
-        if (tokenAddress) {
-          await printERC20Balance({ address, name: '', tokenAddress })
-        }
-      })
-    program
-      .command('compliance <note>')
-      .description(
-        'Shows the deposit and withdrawal of the provided note. This might be necessary to show the origin of assets held in your withdrawal address.'
-      )
-      .action(async (noteString) => {
-        const { currency, amount, netId, deposit } = parseNote(noteString)
-        await init({ rpc: program.rpc, noteNetId: netId, currency, amount })
-        const depositInfo = await loadDepositData({ deposit })
-        const depositDate = new Date(depositInfo.timestamp * 1000)
-        console.log('\n=============Deposit=================')
-        console.log('Deposit     :', amount, currency)
-        console.log('Date        :', depositDate.toLocaleDateString(), depositDate.toLocaleTimeString())
-        console.log('From        :', `https://${getCurrentNetworkName()}etherscan.io/address/${depositInfo.from}`)
-        console.log('Transaction :', `https://${getCurrentNetworkName()}etherscan.io/tx/${depositInfo.txHash}`)
-        console.log('Commitment  :', depositInfo.commitment)
-        if (deposit.isSpent) {
-          console.log('The note was not spent')
-        }
+    })
+  program
+    .command('balance <address> [token_address]')
+    .description('Check ETH and ERC20 balance')
+    .action(async (address, tokenAddress) => {
+      await init({ rpc: program.rpc })
+      await printETHBalance({ address, name: '' })
+      if (tokenAddress) {
+        await printERC20Balance({ address, name: '', tokenAddress })
+      }
+    })
+  program
+    .command('compliance <note>')
+    .description(
+      'Shows the deposit and withdrawal of the provided note. This might be necessary to show the origin of assets held in your withdrawal address.'
+    )
+    .action(async (noteString) => {
+      const { currency, amount, netId, deposit } = parseNote(noteString)
+      await init({ rpc: program.rpc, noteNetId: netId, currency, amount })
+      const depositInfo = await loadDepositData({ deposit })
+      const depositDate = new Date(depositInfo.timestamp * 1000)
+      console.log('\n=============Deposit=================')
+      console.log('Deposit     :', amount, currency)
+      console.log('Date        :', depositDate.toLocaleDateString(), depositDate.toLocaleTimeString())
+      console.log('From        :', `https://${getCurrentNetworkName()}etherscan.io/address/${depositInfo.from}`)
+      console.log('Transaction :', `https://${getCurrentNetworkName()}etherscan.io/tx/${depositInfo.txHash}`)
+      console.log('Commitment  :', depositInfo.commitment)
+      if (deposit.isSpent) {
+        console.log('The note was not spent')
+      }
 
-        const withdrawInfo = await loadWithdrawalData({
-          amount,
-          currency,
-          deposit
-        })
-        const withdrawalDate = new Date(withdrawInfo.timestamp * 1000)
-        console.log('\n=============Withdrawal==============')
-        console.log('Withdrawal  :', withdrawInfo.amount, currency)
-        console.log('Relayer Fee :', withdrawInfo.fee, currency)
-        console.log('Date        :', withdrawalDate.toLocaleDateString(), withdrawalDate.toLocaleTimeString())
-        console.log('To          :', `https://${getCurrentNetworkName()}etherscan.io/address/${withdrawInfo.to}`)
-        console.log('Transaction :', `https://${getCurrentNetworkName()}etherscan.io/tx/${withdrawInfo.txHash}`)
-        console.log('Nullifier   :', withdrawInfo.nullifier)
+      const withdrawInfo = await loadWithdrawalData({
+        amount,
+        currency,
+        deposit
       })
-    program
-      .command('test')
-      .description('Perform an automated test. It deposits and withdraws one ETH and one ERC20 note. Uses ganache.')
-      .action(async () => {
-        console.log('Start performing ETH deposit-withdraw test')
-        let currency = 'eth'
-        let amount = '0.1'
-        await init({ rpc: program.rpc, currency, amount })
-        let noteString = await deposit({ currency, amount })
-        let parsedNote = parseNote(noteString)
-        await withdraw({
-          deposit: parsedNote.deposit,
-          currency,
-          amount,
-          recipient: senderAccount,
-          relayerURL: program.relayer
-        })
+      const withdrawalDate = new Date(withdrawInfo.timestamp * 1000)
+      console.log('\n=============Withdrawal==============')
+      console.log('Withdrawal  :', withdrawInfo.amount, currency)
+      console.log('Relayer Fee :', withdrawInfo.fee, currency)
+      console.log('Date        :', withdrawalDate.toLocaleDateString(), withdrawalDate.toLocaleTimeString())
+      console.log('To          :', `https://${getCurrentNetworkName()}etherscan.io/address/${withdrawInfo.to}`)
+      console.log('Transaction :', `https://${getCurrentNetworkName()}etherscan.io/tx/${withdrawInfo.txHash}`)
+      console.log('Nullifier   :', withdrawInfo.nullifier)
+    })
+  program
+    .command('test')
+    .description('Perform an automated test. It deposits and withdraws one ETH and one ERC20 note. Uses ganache.')
+    .action(async () => {
+      console.log('Start performing ETH deposit-withdraw test')
+      let currency = 'eth'
+      let amount = '0.1'
+      await init({ rpc: program.rpc, currency, amount })
+      let noteString = await deposit({ currency, amount })
+      let parsedNote = parseNote(noteString)
+      await withdraw({
+        deposit: parsedNote.deposit,
+        currency,
+        amount,
+        recipient: senderAccount,
+        relayerURL: program.relayer
+      })
 
-        console.log('\nStart performing DAI deposit-withdraw test')
-        currency = 'dai'
-        amount = '100'
-        await init({ rpc: program.rpc, currency, amount })
-        noteString = await deposit({ currency, amount })
-        parsedNote = parseNote(noteString)
-        await withdraw({
-          deposit: parsedNote.deposit,
-          currency,
-          amount,
-          recipient: senderAccount,
-          refund: '0.02',
-          relayerURL: program.relayer
-        })
+      console.log('\nStart performing DAI deposit-withdraw test')
+      currency = 'dai'
+      amount = '100'
+      await init({ rpc: program.rpc, currency, amount })
+      noteString = await deposit({ currency, amount })
+      parsedNote = parseNote(noteString)
+      await withdraw({
+        deposit: parsedNote.deposit,
+        currency,
+        amount,
+        recipient: senderAccount,
+        refund: '0.02',
+        relayerURL: program.relayer
       })
-    try {
-      await program.parseAsync(process.argv)
-      process.exit(0)
-    } catch (e) {
-      console.log('Error:', e)
-      process.exit(1)
-    }
+    })
+  try {
+    await program.parseAsync(process.argv)
+    process.exit(0)
+  } catch (e) {
+    console.log('Error:', e)
+    process.exit(1)
   }
 }
 

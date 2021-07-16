@@ -19,7 +19,7 @@ const config = require('./config')
 const program = require('commander')
 const { GasPriceOracle } = require('gas-price-oracle')
 
-let web3, tornado, mixerContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId
+let web3, tornado, tornadoContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId
 let MERKLE_TREE_HEIGHT, ETH_AMOUNT, TOKEN_AMOUNT, PRIVATE_KEY
 
 /** Whether we are in a browser or node.js */
@@ -125,7 +125,7 @@ async function generateMerkleProof(deposit, amount) {
 
   const startBlock = cachedEvents.lastBlock
 
-  let rpcEvents = await mixerContract.getPastEvents('Deposit', {
+  let rpcEvents = await tornadoContract.getPastEvents('Deposit', {
     fromBlock: startBlock,
     toBlock: 'latest'
   })
@@ -158,8 +158,8 @@ async function generateMerkleProof(deposit, amount) {
 
   // Validate that our data is correct
   const root = await tree.root()
-  const isValidRoot = await mixerContract.methods.isKnownRoot(toHex(root)).call()
-  const isSpent = await mixerContract.methods.isSpent(toHex(deposit.nullifierHash)).call()
+  const isValidRoot = await tornadoContract.methods.isKnownRoot(toHex(root)).call()
+  const isSpent = await tornadoContract.methods.isSpent(toHex(deposit.nullifierHash)).call()
   assert(isValidRoot === true, 'Merkle tree is corrupted')
   assert(isSpent === false, 'The note is already spent')
   assert(leafIndex >= 0, 'The deposit is not found in the tree')
@@ -540,7 +540,7 @@ function parseNote(noteString) {
 
 async function loadDepositData({ deposit }) {
   try {
-    const eventWhenHappened = await mixerContract.getPastEvents('Deposit', {
+    const eventWhenHappened = await tornadoContract.getPastEvents('Deposit', {
       filter: {
         commitment: deposit.commitmentHex
       },
@@ -553,7 +553,7 @@ async function loadDepositData({ deposit }) {
 
     const { timestamp } = eventWhenHappened[0].returnValues
     const txHash = eventWhenHappened[0].transactionHash
-    const isSpent = await tornado.methods.isSpent(deposit.nullifierHex).call()
+    const isSpent = await tornadoContract.methods.isSpent(deposit.nullifierHex).call()
     const receipt = await web3.eth.getTransactionReceipt(txHash)
 
     return {
@@ -574,7 +574,7 @@ async function loadWithdrawalData({ amount, currency, deposit }) {
 
     const startBlock = cachedEvents.lastBlock
 
-    let rpcEvents = await mixerContract.getPastEvents('Withdrawal', {
+    let rpcEvents = await tornadoContract.getPastEvents('Withdrawal', {
       fromBlock: startBlock,
       toBlock: 'latest'
     })
@@ -617,7 +617,7 @@ async function loadWithdrawalData({ amount, currency, deposit }) {
  * Init web3, contracts, and snark
  */
 async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
-  let contractJson, mixerJson, erc20ContractJson, erc20tornadoJson, tornadoAddress, tokenAddress
+  let contractJson, instanceJson, erc20ContractJson, erc20tornadoJson, tornadoAddress, tokenAddress
   // TODO do we need this? should it work in browser really?
   if (inBrowser) {
     // Initialize using injected web3 (Metamask)
@@ -626,7 +626,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
       transactionConfirmationBlocks: 1
     })
     contractJson = await (await fetch('build/contracts/TornadoProxy.abi.json')).json()
-    mixerJson = await (await fetch('build/contracts/Mixer.abi.json')).json()
+    instanceJson = await (await fetch('build/contracts/Instance.abi.json')).json()
     circuit = await (await fetch('build/circuits/tornado.json')).json()
     proving_key = await (await fetch('build/circuits/tornadoProvingKey.bin')).arrayBuffer()
     MERKLE_TREE_HEIGHT = 20
@@ -637,7 +637,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
     // Initialize from local node
     web3 = new Web3(rpc, null, { transactionConfirmationBlocks: 1 })
     contractJson = require('./build/contracts/TornadoProxy.abi.json')
-    mixerJson = require('./build/contracts/Mixer.abi.json')
+    instanceJson = require('./build/contracts/Instance.abi.json')
     circuit = require('./build/circuits/tornado.json')
     proving_key = fs.readFileSync('build/circuits/tornadoProvingKey.bin').buffer
     MERKLE_TREE_HEIGHT = process.env.MERKLE_TREE_HEIGHT || 20
@@ -670,7 +670,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
   } else {
     try {
       tornadoAddress = config.deployments[`netId${netId}`].proxy
-      tornadoInstance = config.deployments[`netId${netId}`][currency].mixerAddress[amount]
+      tornadoInstance = config.deployments[`netId${netId}`][currency].instanceAddress[amount]
 
       if (!tornadoAddress) {
         throw new Error()
@@ -682,7 +682,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
     }
   }
   tornado = new web3.eth.Contract(contractJson, tornadoAddress)
-  mixerContract = new web3.eth.Contract(mixerJson, tornadoInstance)
+  tornadoContract = new web3.eth.Contract(instanceJson, tornadoInstance)
   erc20 = currency !== 'eth' ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : {}
 }
 

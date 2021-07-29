@@ -599,7 +599,7 @@ async function loadWithdrawalData({ amount, currency, deposit }) {
     const fee = withdrawEvent.fee
     const decimals = config.deployments[`netId${netId}`][currency].decimals
     const withdrawalAmount = toBN(fromDecimals({ amount, decimals })).sub(toBN(fee))
-    const { timestamp } = await web3.eth.getBlock(withdrawEvent.blockHash)
+    const { timestamp } = await web3.eth.getBlock(withdrawEvent.blockNumber)
     return {
       amount: toDecimals(withdrawalAmount, decimals, 9),
       txHash: withdrawEvent.transactionHash,

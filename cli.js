@@ -758,8 +758,9 @@ async function main() {
         console.log('From        :', `https://${getCurrentNetworkName()}etherscan.io/address/${depositInfo.from}`)
         console.log('Transaction :', `https://${getCurrentNetworkName()}etherscan.io/tx/${depositInfo.txHash}`)
         console.log('Commitment  :', depositInfo.commitment)
-        if (deposit.isSpent) {
+        if (!deposit.isSpent) {
           console.log('The note was not spent')
+          return
         }
 
         const withdrawInfo = await loadWithdrawalData({

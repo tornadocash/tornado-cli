@@ -19,7 +19,7 @@ const config = require('./config')
 const program = require('commander')
 const { GasPriceOracle } = require('gas-price-oracle')
 
-let web3, tornado, mixerContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId
+let web3, tornado, tornadoContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId
 let MERKLE_TREE_HEIGHT, ETH_AMOUNT, TOKEN_AMOUNT, PRIVATE_KEY
 
 /** Whether we are in a browser or node.js */
@@ -117,30 +117,49 @@ async function deposit({ currency, amount }) {
  * in it and generates merkle proof
  * @param deposit Deposit object
  */
-async function generateMerkleProof(deposit) {
+async function generateMerkleProof(deposit, amount) {
   let leafIndex = -1
   // Get all deposit events from smart contract and assemble merkle tree from them
-  const events = await mixerContract.getPastEvents('Deposit', {
-    fromBlock: 0,
+
+  const cachedEvents = loadCachedEvents({ type: 'Deposit', amount })
+
+  const startBlock = cachedEvents.lastBlock
+
+  let rpcEvents = await tornadoContract.getPastEvents('Deposit', {
+    fromBlock: startBlock,
     toBlock: 'latest'
   })
 
-  const leaves = events
-    .sort((a, b) => a.returnValues.leafIndex - b.returnValues.leafIndex) // Sort events in chronological order
-    .map((e) => {
-      const index = toBN(e.returnValues.leafIndex).toNumber()
+  rpcEvents = rpcEvents.map(({ blockNumber, transactionHash, returnValues }) => {
+    const { commitment, leafIndex, timestamp } = returnValues
+    return {
+      blockNumber,
+      transactionHash,
+      commitment,
+      leafIndex: Number(leafIndex),
+      timestamp
+    }
+  })
 
-      if (toBN(e.returnValues.commitment).eq(toBN(deposit.commitmentHex))) {
+  const events = cachedEvents.events.concat(rpcEvents)
+  console.log('events', events.length)
+
+  const leaves = events
+    .sort((a, b) => a.leafIndex - b.leafIndex) // Sort events in chronological order
+    .map((e) => {
+      const index = toBN(e.leafIndex).toNumber()
+
+      if (toBN(e.commitment).eq(toBN(deposit.commitmentHex))) {
         leafIndex = index
       }
-      return e.returnValues.commitment.toString(10)
+      return toBN(e.commitment).toString(10)
     })
   const tree = new merkleTree(MERKLE_TREE_HEIGHT, leaves)
 
   // Validate that our data is correct
   const root = await tree.root()
-  const isValidRoot = await mixerContract.methods.isKnownRoot(toHex(root)).call()
-  const isSpent = await mixerContract.methods.isSpent(toHex(deposit.nullifierHash)).call()
+  const isValidRoot = await tornadoContract.methods.isKnownRoot(toHex(root)).call()
+  const isSpent = await tornadoContract.methods.isSpent(toHex(deposit.nullifierHash)).call()
   assert(isValidRoot === true, 'Merkle tree is corrupted')
   assert(isSpent === false, 'The note is already spent')
   assert(leafIndex >= 0, 'The deposit is not found in the tree')
@@ -157,9 +176,9 @@ async function generateMerkleProof(deposit) {
  * @param fee Relayer fee
  * @param refund Receive ether for exchanged tokens
  */
-async function generateProof({ deposit, recipient, relayerAddress = 0, fee = 0, refund = 0 }) {
+async function generateProof({ deposit, amount, recipient, relayerAddress = 0, fee = 0, refund = 0 }) {
   // Compute merkle proof of our commitment
-  const { root, path_elements, path_index } = await generateMerkleProof(deposit)
+  const { root, path_elements, path_index } = await generateMerkleProof(deposit, amount)
 
   // Prepare circuit input
   const input = {
@@ -232,13 +251,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, refu
       throw new Error('Too high refund')
     }
 
-    const { proof, args } = await generateProof({
-      deposit,
-      recipient,
-      relayerAddress: rewardAccount,
-      fee,
-      refund
-    })
+    const { proof, args } = await generateProof({ deposit, amount, recipient, relayerAddress: rewardAccount, fee, refund })
 
     console.log('Sending withdraw transaction through relay')
     try {
@@ -476,6 +489,30 @@ function waitForTxReceipt({ txHash, attempts = 60, delay = 1000 }) {
   })
 }
 
+function loadCachedEvents({ type, amount }) {
+  try {
+    if (netId !== 1) {
+      return {
+        events: [],
+        lastBlock: 0,
+      }
+    }
+
+    const module = require(`./cache/${type.toLowerCase()}s_eth_${amount}.json`)
+
+    if (module) {
+      const events = module
+
+      return {
+        events,
+        lastBlock: events[events.length - 1].blockNumber
+      }
+    }
+  } catch (err) {
+    throw new Error(`Method loadCachedEvents has error: ${err.message}`)
+  }
+}
+
 /**
  * Parses Tornado.cash note
  * @param noteString the note
@@ -503,7 +540,7 @@ function parseNote(noteString) {
 
 async function loadDepositData({ deposit }) {
   try {
-    const eventWhenHappened = await tornado.getPastEvents('Deposit', {
+    const eventWhenHappened = await tornadoContract.getPastEvents('Deposit', {
       filter: {
         commitment: deposit.commitmentHex
       },
@@ -516,7 +553,7 @@ async function loadDepositData({ deposit }) {
 
     const { timestamp } = eventWhenHappened[0].returnValues
     const txHash = eventWhenHappened[0].transactionHash
-    const isSpent = await tornado.methods.isSpent(deposit.nullifierHex).call()
+    const isSpent = await tornadoContract.methods.isSpent(deposit.nullifierHex).call()
     const receipt = await web3.eth.getTransactionReceipt(txHash)
 
     return {
@@ -533,23 +570,40 @@ async function loadDepositData({ deposit }) {
 }
 async function loadWithdrawalData({ amount, currency, deposit }) {
   try {
-    const events = await await tornado.getPastEvents('Withdrawal', {
-      fromBlock: 0,
+    const cachedEvents = loadCachedEvents({ type: 'Withdrawal', amount })
+
+    const startBlock = cachedEvents.lastBlock
+
+    let rpcEvents = await tornadoContract.getPastEvents('Withdrawal', {
+      fromBlock: startBlock,
       toBlock: 'latest'
     })
 
+    rpcEvents = rpcEvents.map(({ blockNumber, transactionHash, returnValues }) => {
+      const { nullifierHash, to, fee } = returnValues
+      return {
+        blockNumber,
+        transactionHash,
+        nullifierHash,
+        to,
+        fee
+      }
+    })
+
+    const events = cachedEvents.events.concat(rpcEvents)
+
     const withdrawEvent = events.filter((event) => {
-      return event.returnValues.nullifierHash === deposit.nullifierHex
+      return event.nullifierHash === deposit.nullifierHex
     })[0]
 
-    const fee = withdrawEvent.returnValues.fee
+    const fee = withdrawEvent.fee
     const decimals = config.deployments[`netId${netId}`][currency].decimals
     const withdrawalAmount = toBN(fromDecimals({ amount, decimals })).sub(toBN(fee))
-    const { timestamp } = await web3.eth.getBlock(withdrawEvent.blockHash)
+    const { timestamp } = await web3.eth.getBlock(withdrawEvent.blockNumber)
     return {
       amount: toDecimals(withdrawalAmount, decimals, 9),
       txHash: withdrawEvent.transactionHash,
-      to: withdrawEvent.returnValues.to,
+      to: withdrawEvent.to,
       timestamp,
       nullifier: deposit.nullifierHex,
       fee: toDecimals(fee, decimals, 9)
@@ -563,7 +617,7 @@ async function loadWithdrawalData({ amount, currency, deposit }) {
  * Init web3, contracts, and snark
  */
 async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
-  let contractJson, mixerJson, erc20ContractJson, erc20tornadoJson, tornadoAddress, tokenAddress
+  let contractJson, instanceJson, erc20ContractJson, erc20tornadoJson, tornadoAddress, tokenAddress
   // TODO do we need this? should it work in browser really?
   if (inBrowser) {
     // Initialize using injected web3 (Metamask)
@@ -572,7 +626,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
       transactionConfirmationBlocks: 1
     })
     contractJson = await (await fetch('build/contracts/TornadoProxy.abi.json')).json()
-    mixerJson = await (await fetch('build/contracts/Mixer.abi.json')).json()
+    instanceJson = await (await fetch('build/contracts/Instance.abi.json')).json()
     circuit = await (await fetch('build/circuits/tornado.json')).json()
     proving_key = await (await fetch('build/circuits/tornadoProvingKey.bin')).arrayBuffer()
     MERKLE_TREE_HEIGHT = 20
@@ -583,7 +637,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
     // Initialize from local node
     web3 = new Web3(rpc, null, { transactionConfirmationBlocks: 1 })
     contractJson = require('./build/contracts/TornadoProxy.abi.json')
-    mixerJson = require('./build/contracts/Mixer.abi.json')
+    instanceJson = require('./build/contracts/Instance.abi.json')
     circuit = require('./build/circuits/tornado.json')
     proving_key = fs.readFileSync('build/circuits/tornadoProvingKey.bin').buffer
     MERKLE_TREE_HEIGHT = process.env.MERKLE_TREE_HEIGHT || 20
@@ -628,7 +682,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
     }
   }
   tornado = new web3.eth.Contract(contractJson, tornadoAddress)
-  mixerContract = new web3.eth.Contract(mixerJson, tornadoInstance)
+  tornadoContract = new web3.eth.Contract(instanceJson, tornadoInstance)
   erc20 = currency !== 'eth' ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : {}
 }
 
@@ -704,8 +758,9 @@ async function main() {
         console.log('From        :', `https://${getCurrentNetworkName()}etherscan.io/address/${depositInfo.from}`)
         console.log('Transaction :', `https://${getCurrentNetworkName()}etherscan.io/tx/${depositInfo.txHash}`)
         console.log('Commitment  :', depositInfo.commitment)
-        if (deposit.isSpent) {
+        if (!deposit.isSpent) {
           console.log('The note was not spent')
+          return
         }
 
         const withdrawInfo = await loadWithdrawalData({

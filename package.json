@@ -14,9 +14,11 @@
     "circomlib": "git+https://github.com/tornadocash/circomlib.git#3b492f9801573eebcfe1b6c584afe8a3beecf2b4",
     "commander": "^5.1.0",
     "dotenv": "^8.2.0",
-    "gas-price-oracle": "^0.2.2",
+    "gas-price-oracle": "^0.4.4",
+    "socks-proxy-agent": "^6.1.1",
     "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5",
-    "web3": "^1.2.8",
+    "web3": "^1.6.1",
+    "web3-providers-http": "file:./local_modules/web3-providers-http",
     "websnark": "git+https://github.com/tornadocash/websnark.git#4c0af6a8b65aabea3c09f377f63c44e7a58afa6d"
   },
   "devDependencies": {

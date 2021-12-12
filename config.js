@@ -252,5 +252,83 @@ module.exports = {
       },
       proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
     },
+    netId100: {
+      'xdai': {
+        'instanceAddress': {
+          '100': '0x1E34A77868E19A6647b1f2F47B51ed72dEDE95DD',
+          '1000': '0xdf231d99Ff8b6c6CBF4E9B9a945CBAcEF9339178',
+          '10000': '0xaf4c0B70B2Ea9FB7487C7CbB37aDa259579fe040',
+          '100000': '0xa5C2254e4253490C54cef0a4347fddb8f75A4998'
+        },
+        'deployedBlockNumber': {
+          '100': 17754566,
+          '1000': 17754568,
+          '10000': 17754572,
+          '100000': 17754574
+        },
+        'miningEnabled': false,
+        'symbol': 'xDAI',
+        'decimals': 18
+      },
+      proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
+    },
+    netId137: {
+      'matic': {
+        'instanceAddress': {
+          '100': '0x1E34A77868E19A6647b1f2F47B51ed72dEDE95DD',
+          '1000': '0xdf231d99Ff8b6c6CBF4E9B9a945CBAcEF9339178',
+          '10000': '0xaf4c0B70B2Ea9FB7487C7CbB37aDa259579fe040',
+          '100000': '0xa5C2254e4253490C54cef0a4347fddb8f75A4998'
+        },
+        'deployedBlockNumber': {
+          '100': 16258013,
+          '1000': 16258032,
+          '10000': 16258046,
+          '100000': 16258053
+        },
+        'miningEnabled': false,
+        'symbol': 'MATIC',
+        'decimals': 18
+      },
+      proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
+    },
+    netId42161: {
+      'eth': {
+        'instanceAddress': {
+          '0.1': '0x84443CFd09A48AF6eF360C6976C5392aC5023a1F',
+          '1': '0xd47438C816c9E7f2E2888E060936a499Af9582b3',
+          '10': '0x330bdFADE01eE9bF63C209Ee33102DD334618e0a',
+          '100': '0x1E34A77868E19A6647b1f2F47B51ed72dEDE95DD'
+        },
+        'deployedBlockNumber': {
+          '0.1': 3300000,
+          '1': 3300000,
+          '10': 3300000,
+          '100': 3300000
+        },
+        'miningEnabled': false,
+        'symbol': 'ETH',
+        'decimals': 18
+      },
+      proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
+    },
+    netId43114: {
+      'avax': {
+        'instanceAddress': {
+          '10': '0x330bdFADE01eE9bF63C209Ee33102DD334618e0a',
+          '100': '0x1E34A77868E19A6647b1f2F47B51ed72dEDE95DD',
+          '500': '0xaf8d1839c3c67cf571aa74B5c12398d4901147B3'
+        },
+        'deployedBlockNumber': {
+          '10': 4429830,
+          '100': 4429851,
+          '500': 4429837
+        },
+        'miningEnabled': false,
+        'symbol': 'AVAX',
+        'decimals': 18
+      },
+      proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
+    },
   }
 }

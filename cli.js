@@ -54,24 +54,42 @@ async function printERC20Balance({ address, name, tokenAddress }) {
   console.log(`${name}`,(await erc20.methods.name().call()),`Token Balance is`,toDecimals(balance, decimals, (balance.length + decimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),(await erc20.methods.symbol().call()))
 }
 
-async function generateTransaction(contractAddress, gasLimit, encodedData, value = 0) {
+async function generateTransaction(to, encodedData, value = 0) {
+  const nonce = await web3.eth.getTransactionCount(senderAccount)
   const gasPrice = await fetchGasPrice()
+  let gasLimit;
   let tx = {}
+
+  async function estimateGas() {
+    const fetchedGas = await web3.eth.estimateGas({
+      from  : senderAccount,
+      to    : to,
+      value : value,
+      nonce : nonce,
+      data  : encodedData
+    })
+    const bumped = Math.floor(fetchedGas * 1.3)
+    gasLimit = web3.utils.toHex(bumped)
+  }
+  await estimateGas();
+
   async function txoptions() {
     // Generate EIP-1559 transaction
     if (netId == 1 || netId == 5) {
       tx = {
-        to       : contractAddress,
-        value    : value,
-        maxFeePerGas: gasPrice,
-        maxPriorityFeePerGas: web3.utils.toHex(web3.utils.toWei('1', 'gwei')),
-        gas      : gasLimit,
-        data     : encodedData
+        to                   : to,
+        value                : value,
+        nonce                : nonce,
+        maxFeePerGas         : gasPrice,
+        maxPriorityFeePerGas : web3.utils.toHex(web3.utils.toWei('3', 'gwei')),
+        gas                  : gasLimit,
+        data                 : encodedData
       }
     } else {
       tx = {
-        to       : contractAddress,
+        to       : to,
         value    : value,
+        nonce    : nonce,
         gasPrice : gasPrice,
         gas      : gasLimit,
         data     : encodedData
@@ -131,7 +149,7 @@ async function deposit({ currency, amount }) {
     await printETHBalance({ address: senderAccount, name: 'Sender account', symbol: currency.toUpperCase() })
     const value = isLocalRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 })
     console.log('Submitting deposit transaction')
-    await generateTransaction(contractAddress, 1200000, await tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI(), value)
+    await generateTransaction(contractAddress, await tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI(), value)
     await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract', symbol: currency.toUpperCase() })
     await printETHBalance({ address: senderAccount, name: 'Sender account', symbol: currency.toUpperCase() })
   } else {
@@ -142,18 +160,18 @@ async function deposit({ currency, amount }) {
     const tokenAmount = isLocalRPC ? TOKEN_AMOUNT : fromDecimals({ amount, decimals })
     if (isLocalRPC) {
       console.log('Minting some test tokens to deposit')
-      await generateTransaction(erc20Address, 2000000, await erc20.methods.mint(senderAccount, tokenAmount).encodeABI())
+      await generateTransaction(erc20Address, await erc20.methods.mint(senderAccount, tokenAmount).encodeABI())
     }
 
     const allowance = await erc20.methods.allowance(senderAccount, tornado._address).call({ from: senderAccount })
     console.log('Current allowance is', fromWei(allowance))
     if (toBN(allowance).lt(toBN(tokenAmount))) {
       console.log('Approving tokens for deposit')
-      await generateTransaction(erc20Address, 500000, await erc20.methods.approve(tornado._address, tokenAmount).encodeABI())
+      await generateTransaction(erc20Address, await erc20.methods.approve(tornado._address, tokenAmount).encodeABI())
     }
 
     console.log('Submitting deposit transaction')
-    await generateTransaction(contractAddress, 2000000, await tornado.methods.deposit(toHex(deposit.commitment)).encodeABI())
+    await generateTransaction(contractAddress, await tornado.methods.deposit(toHex(deposit.commitment)).encodeABI())
     await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' })
     await printERC20Balance({ address: senderAccount, name: 'Sender account' })
   }
@@ -260,7 +278,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
       throw new Error('ENS name resolving is not supported. Please provide DNS name of the relayer. See instuctions in README.md')
     }
     if (torPort) {
-      options = { httpsAgent: new SocksProxyAgent('socks://127.0.0.1:'+torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
+      options = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
     }
     const relayerStatus = await axios.get(relayerURL + '/status', options)
 
@@ -315,7 +333,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
     const { proof, args } = await generateProof({ deposit, currency, amount, recipient, refund })
 
     console.log('Submitting withdraw transaction')
-    await generateTransaction(contractAddress, 400000, await tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
+    await generateTransaction(contractAddress, await tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
   }
   console.log('Done withdrawal from Tornado Cash')
 }
@@ -492,7 +510,7 @@ function getCurrentNetworkSymbol() {
     case 56:
       return 'BNB'
     case 100:
-      return 'DAI'
+      return 'xDAI'
     case 137:
       return 'MATIC'
     case 43114:
@@ -523,7 +541,7 @@ async function fetchGasPrice() {
       const oracle = new GasPriceOracle(options)
       const gas = await oracle.gasPrices()
       return gasPricesETH(gas.instant)
-    } else if (isLocalRPC) {
+    } else if (netId == 5 || isLocalRPC) {
       return gasPrices(1)
     } else {
       const oracle = new GasPriceOracle(options)
@@ -600,7 +618,7 @@ function waitForTxReceipt({ txHash, attempts = 60, delay = 1000 }) {
   })
 }
 
-function loadCachedEvents({type, currency, amount }) {
+function loadCachedEvents({ type, currency, amount }) {
   try {
     const module = require(`./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`)
 
@@ -621,7 +639,7 @@ function loadCachedEvents({type, currency, amount }) {
   }
 }
 
-async function fetchEvents({type, currency, amount}) {
+async function fetchEvents({ type, currency, amount}) {
     let leafIndex = -1
     let events = [];
     let fetchedEvents, chunks, targetBlock;
@@ -807,7 +825,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   } else {
     if (torPort) {
       console.log("Using tor network")
-      web3Options = { agent: { https: new SocksProxyAgent('socks://127.0.0.1:'+torPort) }, timeout: 60000 }
+      web3Options = { agent: { https: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort) }, timeout: 60000 }
       // Use forked web3-providers-http from local file to modify user-agent header value which improves privacy.
       web3 = new Web3(new Web3HttpProvider(rpc, web3Options), null, { transactionConfirmationBlocks: 1 })
     } else if (rpc.includes("ipc")) {
@@ -845,7 +863,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   if (noteNetId && Number(noteNetId) !== netId) {
     throw new Error('This note is for a different network. Specify the --rpc option explicitly')
   }
-  if (getCurrentNetworkName() === "localRPC") {
+  if (netName === "localRPC") {
     isLocalRPC = true;
   }
 

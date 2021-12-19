@@ -7,7 +7,7 @@ Current cli version doesn't support [Anonymity Mining](https://tornado-cash.medi
 
 Example:
 ```bash
-$ ./cli.js deposit ETH 0.1 --rpc https://goerli.infura.io/v3/27a9649f826b4e31a83e07ae09a87448 --tor 9050
+$ ./cli.js deposit ETH 0.1 --rpc https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161 --tor 9050
 
 Your note: tornado-eth-0.1-5-0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652
 Tornado ETH balance is 8.9
@@ -18,7 +18,7 @@ Sender account ETH balance is 1004873.361652048361352542
 ```
 
 ```bash
-$ ./cli.js withdraw tornado-eth-0.1-5-0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652 0x8589427373D6D84E98730D7795D8f6f8731FDA16 --rpc https://goerli.infura.io/v3/27a9649f826b4e31a83e07ae09a87448 --relayer https://goerli-frelay.duckdns.org --tor 9050
+$ ./cli.js withdraw tornado-eth-0.1-5-0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652 0x8589427373D6D84E98730D7795D8f6f8731FDA16 --rpc https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161 --relayer https://goerli-frelay.duckdns.org --tor 9050
 
 Relay address:  0x6A31736e7490AbE5D5676be059DFf064AB4aC754
 Getting current state from tornado contract
@@ -32,10 +32,16 @@ Done
 
 ### List of public rpc & relayers for withdrawal
 
+Infura API key fetched from https://rpc.info (Same one with Metamask)
+
 ```json
 {
    "netId1":{
       "rpcUrls":{
+         "Infura":{
+            "name":"Infura",
+            "url":"https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+         },
          "MyEtherWallet":{
             "name":"MyEtherWallet",
             "url":"https://nodes.mewapi.io/rpc/eth"
@@ -426,6 +432,10 @@ Done
    },
    "netId5":{
       "rpcUrls":{
+         "Infura":{
+            "name":"Infura",
+            "url":"https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+         },
          "Mudit":{
             "name":"Mudit",
             "url":"https://rpc.goerli.mudit.blog"

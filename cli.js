@@ -123,7 +123,7 @@ function createDeposit({ nullifier, secret }) {
 async function backupNote({ currency, amount, netId, note, noteString }) {
   try {
     await fs.writeFileSync(`./backup-tornado-${currency}-${amount}-${netId}-${note.slice(0, 10)}.txt`, noteString, 'utf8');
-    console.log("Backed up deposit note as",fileName)
+    console.log("Backed up deposit note as",`./backup-tornado-${currency}-${amount}-${netId}-${note.slice(0, 10)}.txt`)
   } catch (e) {
     throw new Error('Writing backup note failed:',e)
   }

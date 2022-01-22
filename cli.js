@@ -618,6 +618,21 @@ function waitForTxReceipt({ txHash, attempts = 60, delay = 1000 }) {
   })
 }
 
+function initJson(file) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(file, 'utf8', (error, data) => {
+            if (error) {
+                reject(error);
+            }
+            try {
+              resolve(JSON.parse(data));
+            } catch (error) {
+              resolve([]);
+            }
+        });
+    });
+};
+
 function loadCachedEvents({ type, currency, amount }) {
   try {
     const module = require(`./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`)
@@ -641,8 +656,6 @@ function loadCachedEvents({ type, currency, amount }) {
 
 async function fetchEvents({ type, currency, amount}) {
     let leafIndex = -1
-    let events = [];
-    let fetchedEvents, chunks, targetBlock;
 
     if (type === "withdraw") {
       type = "withdrawal"
@@ -651,75 +664,86 @@ async function fetchEvents({ type, currency, amount}) {
     const cachedEvents = loadCachedEvents({ type, currency, amount })
     const startBlock = cachedEvents.lastBlock + 1
 
+    console.log("Loaded cached",amount,currency.toUpperCase(),type,"events for",startBlock,"block")
     console.log("Fetching",amount,currency.toUpperCase(),type,"events for",netName,"network")
 
-    async function fetchLatestEvents() {
-      targetBlock = await web3.eth.getBlockNumber();
-      chunks = 1000;
-      fetchedEvents = [];
-      for (let i=startBlock; i < targetBlock; i+=chunks) {
-        await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
-            fromBlock: i,
-            toBlock: i+chunks-1,
-        }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events from block:", i) }, err => { console.error(i + " failed fetching",type,"events from node", err) }).catch(console.log);
-      }
-    }
-    await fetchLatestEvents()
-
-    async function mapDepositEvents() {
-      fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
-        const { commitment, leafIndex, timestamp } = returnValues
-        return {
-          blockNumber,
-          transactionHash,
-          commitment,
-          leafIndex: Number(leafIndex),
-          timestamp
-        }
-      })
-    }
-
-    async function mapWithdrawEvents() {
-      fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
-        const { nullifierHash, to, fee } = returnValues
-        return {
-          blockNumber,
-          transactionHash,
-          nullifierHash,
-          to,
-          fee
-        }
-      })
-    }
-
-    async function mapLatestEvents() {
-      console.log("Mapping",amount,currency.toUpperCase(),type,"events, please wait")
-      if (type === "deposit"){
-        await mapDepositEvents();
-      } else {
-        await mapWithdrawEvents();
-      }
-    }
-    await mapLatestEvents();
-
-    console.log("Gathering cached events + collected events from node")
-
-    async function concatEvents() {
-      events = cachedEvents.events.concat(fetchedEvents)
-    }
-    await concatEvents();
-
-    console.log('Total events:', events.length)
-
-    async function updateCache() {
+    async function syncEvents() {
       try {
-        await fs.writeFileSync(`./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`, JSON.stringify(events, null, 2), 'utf8')
-        console.log("Cache updated for Tornado",type,amount,currency,"instance successfully")
-      } catch (e) {
-        throw new Error('Writing cache file failed:',e)
+        let targetBlock = await web3.eth.getBlockNumber();
+        let chunks = 1000;
+        for (let i=startBlock; i < targetBlock; i+=chunks) {
+          let fetchedEvents = [];
+          async function fetchLatestEvents(i) {
+            await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
+                fromBlock: i,
+                toBlock: i+chunks-1,
+            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events from block:", i) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
+          }
+
+          async function mapDepositEvents() {
+            fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
+              const { commitment, leafIndex, timestamp } = returnValues
+              return {
+                blockNumber,
+                transactionHash,
+                commitment,
+                leafIndex: Number(leafIndex),
+                timestamp
+              }
+            })
+          }
+
+          async function mapWithdrawEvents() {
+            fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
+              const { nullifierHash, to, fee } = returnValues
+              return {
+                blockNumber,
+                transactionHash,
+                nullifierHash,
+                to,
+                fee
+              }
+            })
+          }
+
+          async function mapLatestEvents() {
+            if (type === "deposit"){
+              await mapDepositEvents();
+            } else {
+              await mapWithdrawEvents();
+            }
+          }
+
+          async function updateCache() {
+            try {
+              const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`
+              const localEvents = await initJson(fileName);
+              const events = localEvents.concat(fetchedEvents);
+              await fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8')
+            } catch (error) {
+              throw new Error('Writing cache file failed:',error)
+            }
+          }
+          await fetchLatestEvents(i);
+          await mapLatestEvents();
+          await updateCache();
+        }
+      } catch (error) {
+        throw new Error("Error while updating cache")
+        process.exit(1)
       }
     }
-    await updateCache();
+    await syncEvents();
+
+    async function loadUpdatedEvents() {
+      const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`
+      const updatedEvents = await initJson(fileName);
+      const updatedBlock = updatedEvents[updatedEvents.length - 1].blockNumber
+      console.log("Cache updated for Tornado",type,amount,currency,"instance to block",updatedBlock,"successfully")
+      console.log('Total events:', updatedEvents.length)
+      return updatedEvents;
+    }
+    const events = await loadUpdatedEvents();
 
     return events
 }

@@ -144,7 +144,7 @@ async function deposit({ currency, amount }) {
   const noteString = `tornado-${currency}-${amount}-${netId}-${note}`
   console.log(`Your note: ${noteString}`)
   await backupNote({ currency, amount, netId, note, noteString })
-  if (currency === 'eth' || currency === 'bnb' || currency === 'xdai' || currency === 'matic' || currency === 'avax') {
+  if (currency === netSymbol.toLowerCase()) {
     await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract', symbol: currency.toUpperCase() })
     await printETHBalance({ address: senderAccount, name: 'Sender account', symbol: currency.toUpperCase() })
     const value = isLocalRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 })
@@ -269,7 +269,7 @@ async function generateProof({ deposit, currency, amount, recipient, relayerAddr
  */
 async function withdraw({ deposit, currency, amount, recipient, relayerURL, torPort, refund = '0' }) {
   let options = {};
-  if (currency === 'eth' && refund !== '0') {
+  if (currency === netSymbol.toLowerCase() && refund !== '0') {
     throw new Error('The ETH purchase is supposted to be 0 for ETH withdrawals')
   }
   refund = toWei(refund)
@@ -328,7 +328,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
 
     // check if the address of recepient matches with the account of provided private key from environment to prevent accidental use of deposit address for withdrawal transaction.
     const { address } = await web3.eth.accounts.privateKeyToAccount('0x' + PRIVATE_KEY)
-    assert(recipient.toLowerCase() == address.toLowerCase(), 'Withdrawal amount recepient',recipient,'mismatches with the account of provided private key from environment file',address)
+    assert(recipient.toLowerCase() == address.toLowerCase(), 'Withdrawal amount recepient mismatches with the account of provided private key from environment file')
 
     const { proof, args } = await generateProof({ deposit, currency, amount, recipient, refund })
 
@@ -562,23 +562,7 @@ function calculateFee({ currency, gasPrice, amount, refund, ethPrices, relayerSe
   const expense = toBN(gasPrice).mul(toBN(5e5))
   let desiredFee
   switch (currency) {
-    case 'eth': {
-      desiredFee = expense.add(feePercent)
-      break
-    }
-    case 'bnb': {
-      desiredFee = expense.add(feePercent)
-      break
-    }
-    case 'xdai': {
-      desiredFee = expense.add(feePercent)
-      break
-    }
-    case 'matic': {
-      desiredFee = expense.add(feePercent)
-      break
-    }
-    case 'avax': {
+    case netSymbol.toLowerCase(): {
       desiredFee = expense.add(feePercent)
       break
     }
@@ -655,8 +639,6 @@ function loadCachedEvents({ type, currency, amount }) {
 }
 
 async function fetchEvents({ type, currency, amount}) {
-    let leafIndex = -1
-
     if (type === "withdraw") {
       type = "withdrawal"
     }
@@ -677,7 +659,7 @@ async function fetchEvents({ type, currency, amount}) {
             await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
                 fromBlock: i,
                 toBlock: i+chunks-1,
-            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events from block:", i) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
+            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events to block:", i) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
           }
 
           async function mapDepositEvents() {
@@ -870,7 +852,12 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
     MERKLE_TREE_HEIGHT = process.env.MERKLE_TREE_HEIGHT || 20
     ETH_AMOUNT = process.env.ETH_AMOUNT
     TOKEN_AMOUNT = process.env.TOKEN_AMOUNT
-    PRIVATE_KEY = process.env.PRIVATE_KEY
+    const privKey = process.env.PRIVATE_KEY
+    if (privKey.includes("0x")) {
+      PRIVATE_KEY = process.env.PRIVATE_KEY.substring(2)
+    } else {
+      PRIVATE_KEY = process.env.PRIVATE_KEY
+    }
     if (PRIVATE_KEY) {
       const account = web3.eth.accounts.privateKeyToAccount('0x' + PRIVATE_KEY)
       web3.eth.accounts.wallet.add('0x' + PRIVATE_KEY)
@@ -917,6 +904,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
       process.exit(1)
     }
   }
+  netSymbol = getCurrentNetworkSymbol()
   tornado = new web3.eth.Contract(contractJson, tornadoAddress)
   tornadoContract = new web3.eth.Contract(instanceJson, tornadoInstance)
   contractAddress = tornadoAddress

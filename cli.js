@@ -486,6 +486,8 @@ function getExplorerLink() {
       return 'goerli.etherscan.io'
     case 42:
       return 'kovan.etherscan.io'
+    case 10:
+      return 'optimistic.etherscan.io'
     default:
       return 'etherscan.io'
   }
@@ -510,6 +512,8 @@ function getCurrentNetworkName() {
       return 'Goerli'
     case 42:
       return 'Kovan'
+    case 137:
+      return 'Optimism'
     default:
       return 'localRPC'
   }

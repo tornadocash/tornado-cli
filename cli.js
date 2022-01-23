@@ -85,6 +85,16 @@ async function generateTransaction(to, encodedData, value = 0) {
         gas                  : gasLimit,
         data                 : encodedData
       }
+    } else if (netId == 137 || netId == 43114) {
+      tx = {
+        to                   : to,
+        value                : value,
+        nonce                : nonce,
+        maxFeePerGas         : gasPrice,
+        maxPriorityFeePerGas : gasPrice,
+        gas                  : gasLimit,
+        data                 : encodedData
+      }
     } else {
       tx = {
         to       : to,

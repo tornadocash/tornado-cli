@@ -71,7 +71,11 @@ async function generateTransaction(to, encodedData, value = 0) {
     const bumped = Math.floor(fetchedGas * 1.3)
     gasLimit = web3.utils.toHex(bumped)
   }
-  await estimateGas();
+  if (encodedData) {
+    await estimateGas();
+  } else {
+    gasLimit = web3.utils.toHex(21000);
+  }
 
   async function txoptions() {
     // Generate EIP-1559 transaction
@@ -346,6 +350,53 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
     await generateTransaction(contractAddress, await tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
   }
   console.log('Done withdrawal from Tornado Cash')
+}
+
+/**
+ * Do an ETH / ERC20 send
+ * @param address Recepient address
+ * @param amount Amount to send
+ * @param tokenAddress ERC20 token address
+ */
+async function send({ address, amount, tokenAddress }) {
+  // using private key
+  assert(senderAccount != null, 'Error! PRIVATE_KEY not found. Please provide PRIVATE_KEY in .env file if you send')
+  if (tokenAddress) {
+    const erc20ContractJson = require('./build/contracts/ERC20Mock.json')
+    erc20 = new web3.eth.Contract(erc20ContractJson.abi, tokenAddress)
+    const balance = await erc20.methods.balanceOf(senderAccount).call()
+    const decimals = await erc20.methods.decimals().call()
+    const toSend = amount * Math.pow(10, decimals)
+    if (balance < toSend) {
+      console.error("You have",toDecimals(balance, decimals, (balance.length + decimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),(await erc20.methods.symbol().call()),", you can't send more than you have")
+      process.exit(1);
+    }
+    await generateTransaction(tokenAddress, await erc20.methods.transfer(address, toBN(toSend)).encodeABI())
+    console.log('Sent',amount,(await erc20.methods.symbol().call()),'to',address);
+  } else {
+    const balance = await web3.eth.getBalance(senderAccount)
+    if (balance == 0) {
+      console.error("You have 0 balance, can't send")
+      process.exit(1);
+    }
+    if (!amount) {
+      console.log('Amount not defined, sending all available amounts')
+      const gasPrice = await fetchGasPrice()
+      const gasLimit = 21000;
+      if (netId == 1 || netId == 5) {
+        const priorityFee = await gasPrices(3)
+        amount = (balance - (gasLimit * (parseInt(gasPrice) + parseInt(priorityFee))))
+      } else {
+        amount = (balance - (gasLimit * parseInt(gasPrice)))
+      }
+    }
+    if (balance < amount) {
+      console.error("You have",web3.utils.fromWei(toHex(balance)),netSymbol,", you can't send more than you have.")
+      process.exit(1);
+    }
+    await generateTransaction(address, null, amount)
+    console.log('Sent',web3.utils.fromWei(toHex(amount)),netSymbol,'to',address);
+  }
 }
 
 function getStatus(id, relayerURL, options) {
@@ -983,6 +1034,13 @@ async function main() {
         if (tokenAddress) {
           await printERC20Balance({ address, name: 'Account', tokenAddress })
         }
+      })
+    program
+      .command('send <address> [amount] [token_address]')
+      .description('Send ETH or ERC to address')
+      .action(async (address, amount, tokenAddress) => {
+        await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true })
+        await send({ address, amount, tokenAddress })
       })
     program
       .command('compliance <note>')

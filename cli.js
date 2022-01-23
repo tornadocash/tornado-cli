@@ -71,7 +71,11 @@ async function generateTransaction(to, encodedData, value = 0) {
     const bumped = Math.floor(fetchedGas * 1.3)
     gasLimit = web3.utils.toHex(bumped)
   }
-  await estimateGas();
+  if (encodedData) {
+    await estimateGas();
+  } else {
+    gasLimit = web3.utils.toHex(21000);
+  }
 
   async function txoptions() {
     // Generate EIP-1559 transaction
@@ -82,6 +86,16 @@ async function generateTransaction(to, encodedData, value = 0) {
         nonce                : nonce,
         maxFeePerGas         : gasPrice,
         maxPriorityFeePerGas : web3.utils.toHex(web3.utils.toWei('3', 'gwei')),
+        gas                  : gasLimit,
+        data                 : encodedData
+      }
+    } else if (netId == 137 || netId == 43114) {
+      tx = {
+        to                   : to,
+        value                : value,
+        nonce                : nonce,
+        maxFeePerGas         : gasPrice,
+        maxPriorityFeePerGas : gasPrice,
         gas                  : gasLimit,
         data                 : encodedData
       }
@@ -144,7 +158,7 @@ async function deposit({ currency, amount }) {
   const noteString = `tornado-${currency}-${amount}-${netId}-${note}`
   console.log(`Your note: ${noteString}`)
   await backupNote({ currency, amount, netId, note, noteString })
-  if (currency === 'eth' || currency === 'bnb' || currency === 'xdai' || currency === 'matic' || currency === 'avax') {
+  if (currency === netSymbol.toLowerCase()) {
     await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract', symbol: currency.toUpperCase() })
     await printETHBalance({ address: senderAccount, name: 'Sender account', symbol: currency.toUpperCase() })
     const value = isLocalRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 })
@@ -269,7 +283,7 @@ async function generateProof({ deposit, currency, amount, recipient, relayerAddr
  */
 async function withdraw({ deposit, currency, amount, recipient, relayerURL, torPort, refund = '0' }) {
   let options = {};
-  if (currency === 'eth' && refund !== '0') {
+  if (currency === netSymbol.toLowerCase() && refund !== '0') {
     throw new Error('The ETH purchase is supposted to be 0 for ETH withdrawals')
   }
   refund = toWei(refund)
@@ -328,7 +342,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
 
     // check if the address of recepient matches with the account of provided private key from environment to prevent accidental use of deposit address for withdrawal transaction.
     const { address } = await web3.eth.accounts.privateKeyToAccount('0x' + PRIVATE_KEY)
-    assert(recipient.toLowerCase() == address.toLowerCase(), 'Withdrawal amount recepient',recipient,'mismatches with the account of provided private key from environment file',address)
+    assert(recipient.toLowerCase() == address.toLowerCase(), 'Withdrawal amount recepient mismatches with the account of provided private key from environment file')
 
     const { proof, args } = await generateProof({ deposit, currency, amount, recipient, refund })
 
@@ -336,6 +350,53 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
     await generateTransaction(contractAddress, await tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
   }
   console.log('Done withdrawal from Tornado Cash')
+}
+
+/**
+ * Do an ETH / ERC20 send
+ * @param address Recepient address
+ * @param amount Amount to send
+ * @param tokenAddress ERC20 token address
+ */
+async function send({ address, amount, tokenAddress }) {
+  // using private key
+  assert(senderAccount != null, 'Error! PRIVATE_KEY not found. Please provide PRIVATE_KEY in .env file if you send')
+  if (tokenAddress) {
+    const erc20ContractJson = require('./build/contracts/ERC20Mock.json')
+    erc20 = new web3.eth.Contract(erc20ContractJson.abi, tokenAddress)
+    const balance = await erc20.methods.balanceOf(senderAccount).call()
+    const decimals = await erc20.methods.decimals().call()
+    const toSend = amount * Math.pow(10, decimals)
+    if (balance < toSend) {
+      console.error("You have",toDecimals(balance, decimals, (balance.length + decimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),(await erc20.methods.symbol().call()),", you can't send more than you have")
+      process.exit(1);
+    }
+    await generateTransaction(tokenAddress, await erc20.methods.transfer(address, toBN(toSend)).encodeABI())
+    console.log('Sent',amount,(await erc20.methods.symbol().call()),'to',address);
+  } else {
+    const balance = await web3.eth.getBalance(senderAccount)
+    if (balance == 0) {
+      console.error("You have 0 balance, can't send")
+      process.exit(1);
+    }
+    if (!amount) {
+      console.log('Amount not defined, sending all available amounts')
+      const gasPrice = await fetchGasPrice()
+      const gasLimit = 21000;
+      if (netId == 1 || netId == 5) {
+        const priorityFee = await gasPrices(3)
+        amount = (balance - (gasLimit * (parseInt(gasPrice) + parseInt(priorityFee))))
+      } else {
+        amount = (balance - (gasLimit * parseInt(gasPrice)))
+      }
+    }
+    if (balance < amount) {
+      console.error("You have",web3.utils.fromWei(toHex(balance)),netSymbol,", you can't send more than you have.")
+      process.exit(1);
+    }
+    await generateTransaction(address, null, amount)
+    console.log('Sent',web3.utils.fromWei(toHex(amount)),netSymbol,'to',address);
+  }
 }
 
 function getStatus(id, relayerURL, options) {
@@ -476,6 +537,8 @@ function getExplorerLink() {
       return 'goerli.etherscan.io'
     case 42:
       return 'kovan.etherscan.io'
+    case 10:
+      return 'optimistic.etherscan.io'
     default:
       return 'etherscan.io'
   }
@@ -500,6 +563,8 @@ function getCurrentNetworkName() {
       return 'Goerli'
     case 42:
       return 'Kovan'
+    case 137:
+      return 'Optimism'
     default:
       return 'localRPC'
   }
@@ -562,23 +627,7 @@ function calculateFee({ currency, gasPrice, amount, refund, ethPrices, relayerSe
   const expense = toBN(gasPrice).mul(toBN(5e5))
   let desiredFee
   switch (currency) {
-    case 'eth': {
-      desiredFee = expense.add(feePercent)
-      break
-    }
-    case 'bnb': {
-      desiredFee = expense.add(feePercent)
-      break
-    }
-    case 'xdai': {
-      desiredFee = expense.add(feePercent)
-      break
-    }
-    case 'matic': {
-      desiredFee = expense.add(feePercent)
-      break
-    }
-    case 'avax': {
+    case netSymbol.toLowerCase(): {
       desiredFee = expense.add(feePercent)
       break
     }
@@ -618,6 +667,21 @@ function waitForTxReceipt({ txHash, attempts = 60, delay = 1000 }) {
   })
 }
 
+function initJson(file) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(file, 'utf8', (error, data) => {
+            if (error) {
+                reject(error);
+            }
+            try {
+              resolve(JSON.parse(data));
+            } catch (error) {
+              resolve([]);
+            }
+        });
+    });
+};
+
 function loadCachedEvents({ type, currency, amount }) {
   try {
     const module = require(`./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`)
@@ -640,10 +704,6 @@ function loadCachedEvents({ type, currency, amount }) {
 }
 
 async function fetchEvents({ type, currency, amount}) {
-    let leafIndex = -1
-    let events = [];
-    let fetchedEvents, chunks, targetBlock;
-
     if (type === "withdraw") {
       type = "withdrawal"
     }
@@ -651,75 +711,86 @@ async function fetchEvents({ type, currency, amount}) {
     const cachedEvents = loadCachedEvents({ type, currency, amount })
     const startBlock = cachedEvents.lastBlock + 1
 
+    console.log("Loaded cached",amount,currency.toUpperCase(),type,"events for",startBlock,"block")
     console.log("Fetching",amount,currency.toUpperCase(),type,"events for",netName,"network")
 
-    async function fetchLatestEvents() {
-      targetBlock = await web3.eth.getBlockNumber();
-      chunks = 1000;
-      fetchedEvents = [];
-      for (let i=startBlock; i < targetBlock; i+=chunks) {
-        await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
-            fromBlock: i,
-            toBlock: i+chunks-1,
-        }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events from block:", i) }, err => { console.error(i + " failed fetching",type,"events from node", err) }).catch(console.log);
-      }
-    }
-    await fetchLatestEvents()
-
-    async function mapDepositEvents() {
-      fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
-        const { commitment, leafIndex, timestamp } = returnValues
-        return {
-          blockNumber,
-          transactionHash,
-          commitment,
-          leafIndex: Number(leafIndex),
-          timestamp
-        }
-      })
-    }
-
-    async function mapWithdrawEvents() {
-      fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
-        const { nullifierHash, to, fee } = returnValues
-        return {
-          blockNumber,
-          transactionHash,
-          nullifierHash,
-          to,
-          fee
-        }
-      })
-    }
-
-    async function mapLatestEvents() {
-      console.log("Mapping",amount,currency.toUpperCase(),type,"events, please wait")
-      if (type === "deposit"){
-        await mapDepositEvents();
-      } else {
-        await mapWithdrawEvents();
-      }
-    }
-    await mapLatestEvents();
-
-    console.log("Gathering cached events + collected events from node")
-
-    async function concatEvents() {
-      events = cachedEvents.events.concat(fetchedEvents)
-    }
-    await concatEvents();
-
-    console.log('Total events:', events.length)
-
-    async function updateCache() {
+    async function syncEvents() {
       try {
-        await fs.writeFileSync(`./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`, JSON.stringify(events, null, 2), 'utf8')
-        console.log("Cache updated for Tornado",type,amount,currency,"instance successfully")
-      } catch (e) {
-        throw new Error('Writing cache file failed:',e)
+        let targetBlock = await web3.eth.getBlockNumber();
+        let chunks = 1000;
+        for (let i=startBlock; i < targetBlock; i+=chunks) {
+          let fetchedEvents = [];
+          async function fetchLatestEvents(i) {
+            await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
+                fromBlock: i,
+                toBlock: i+chunks-1,
+            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events to block:", i) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
+          }
+
+          async function mapDepositEvents() {
+            fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
+              const { commitment, leafIndex, timestamp } = returnValues
+              return {
+                blockNumber,
+                transactionHash,
+                commitment,
+                leafIndex: Number(leafIndex),
+                timestamp
+              }
+            })
+          }
+
+          async function mapWithdrawEvents() {
+            fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
+              const { nullifierHash, to, fee } = returnValues
+              return {
+                blockNumber,
+                transactionHash,
+                nullifierHash,
+                to,
+                fee
+              }
+            })
+          }
+
+          async function mapLatestEvents() {
+            if (type === "deposit"){
+              await mapDepositEvents();
+            } else {
+              await mapWithdrawEvents();
+            }
+          }
+
+          async function updateCache() {
+            try {
+              const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`
+              const localEvents = await initJson(fileName);
+              const events = localEvents.concat(fetchedEvents);
+              await fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8')
+            } catch (error) {
+              throw new Error('Writing cache file failed:',error)
+            }
+          }
+          await fetchLatestEvents(i);
+          await mapLatestEvents();
+          await updateCache();
+        }
+      } catch (error) {
+        throw new Error("Error while updating cache")
+        process.exit(1)
       }
     }
-    await updateCache();
+    await syncEvents();
+
+    async function loadUpdatedEvents() {
+      const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`
+      const updatedEvents = await initJson(fileName);
+      const updatedBlock = updatedEvents[updatedEvents.length - 1].blockNumber
+      console.log("Cache updated for Tornado",type,amount,currency,"instance to block",updatedBlock,"successfully")
+      console.log('Total events:', updatedEvents.length)
+      return updatedEvents;
+    }
+    const events = await loadUpdatedEvents();
 
     return events
 }
@@ -846,7 +917,12 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
     MERKLE_TREE_HEIGHT = process.env.MERKLE_TREE_HEIGHT || 20
     ETH_AMOUNT = process.env.ETH_AMOUNT
     TOKEN_AMOUNT = process.env.TOKEN_AMOUNT
-    PRIVATE_KEY = process.env.PRIVATE_KEY
+    const privKey = process.env.PRIVATE_KEY
+    if (privKey.includes("0x")) {
+      PRIVATE_KEY = process.env.PRIVATE_KEY.substring(2)
+    } else {
+      PRIVATE_KEY = process.env.PRIVATE_KEY
+    }
     if (PRIVATE_KEY) {
       const account = web3.eth.accounts.privateKeyToAccount('0x' + PRIVATE_KEY)
       web3.eth.accounts.wallet.add('0x' + PRIVATE_KEY)
@@ -893,6 +969,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
       process.exit(1)
     }
   }
+  netSymbol = getCurrentNetworkSymbol()
   tornado = new web3.eth.Contract(contractJson, tornadoAddress)
   tornadoContract = new web3.eth.Contract(instanceJson, tornadoInstance)
   contractAddress = tornadoAddress
@@ -957,6 +1034,13 @@ async function main() {
         if (tokenAddress) {
           await printERC20Balance({ address, name: 'Account', tokenAddress })
         }
+      })
+    program
+      .command('send <address> [amount] [token_address]')
+      .description('Send ETH or ERC to address')
+      .action(async (address, amount, tokenAddress) => {
+        await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true })
+        await send({ address, amount, tokenAddress })
       })
     program
       .command('compliance <note>')

@@ -1,13 +1,40 @@
-# Warning!
+# Tornado cli
+
+Command line tool to interact with [Tornado Cash](https://tornadocash.eth.link).
+
+### Warning!
 Current cli version doesn't support [Anonymity Mining](https://tornado-cash.medium.com/tornado-cash-governance-proposal-a55c5c7d0703)
 
-### Goerli, Mainnet, Binance Smart Chain
+### How to install tornado cli
+Download and install [node.js](https://nodejs.org/en/download/).
+
+If you have git installed on your system, clone the master branch.
+
+```bash
+$ git clone https://github.com/tornadocash/tornado-cli
+```
+
+Or, download the archive file from github
+
+https://github.com/tornadocash/tornado-cli/archive/refs/heads/master.zip
+
+After downloading or cloning the repository, you must install necessary libraries using the following command.
+
+```bash
+$ cd tornado-cli
+$ npm install
+```
+
+If you want to use Tor connection to conceal ip address, install [Tor Browser](https://www.torproject.org/download/) and add `--tor 9150` for `cli.js` if you connect tor with browser.
+Note that you should reset your tor connection by restarting the browser every time when you deposit & withdraw otherwise you will have the same exit node used for connection.
+
+### Goerli, Mainnet, Binance Smart Chain, Gnosis Chain, Polygon Network, Arbitrum, Avalanche
 1. Add `PRIVATE_KEY` to `.env` file
-2. `./cli.js --help`
+2. `node cli.js --help`
 
 Example:
 ```bash
-$ ./cli.js deposit ETH 0.1 --rpc https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161 --tor 9050
+$ node cli.js deposit ETH 0.1 --rpc https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161 --tor 9150
 
 Your note: tornado-eth-0.1-5-0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652
 Tornado ETH balance is 8.9
@@ -18,7 +45,7 @@ Sender account ETH balance is 1004873.361652048361352542
 ```
 
 ```bash
-$ ./cli.js withdraw tornado-eth-0.1-5-0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652 0x8589427373D6D84E98730D7795D8f6f8731FDA16 --rpc https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161 --relayer https://goerli-frelay.duckdns.org --tor 9050
+$ node cli.js withdraw tornado-eth-0.1-5-0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652 0x8589427373D6D84E98730D7795D8f6f8731FDA16 --rpc https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161 --relayer https://goerli-frelay.duckdns.org --tor 9150
 
 Relay address:  0x6A31736e7490AbE5D5676be059DFf064AB4aC754
 Getting current state from tornado contract
@@ -518,6 +545,41 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
             "url":"goerli-v2.defidevotee.eth",
             "name":"goerli-v2.defidevotee.eth",
             "cachedUrl":"https://goerli-v2.defidevotee.xyz"
+         }
+      }
+   },
+   "netId10":{
+      "rpcUrls":{
+         "Optimism":{
+            "name":"Optimism Public RPC",
+            "url":"https://mainnet.optimism.io"
+         }
+      },
+      "relayers":{
+         "optimism.t-relay.eth":{
+            "url":"optimism.t-relay.eth",
+            "name":"optimism.t-relay.eth",
+            "cachedUrl":"https://optimism.t-relay.online/"
+         },
+         "optimism.therelayer.eth":{
+            "url":"optimism.therelayer.eth",
+            "name":"optimism.therelayer.eth",
+            "cachedUrl":"https://optimism.therelayer.xyz/"
+         },
+         "optimism.relayer-service.eth":{
+            "url":"optimism.relayer-service.eth",
+            "name":"optimism.relayer-service.eth",
+            "cachedUrl":"https://optimism-relayer.hertz.zone/"
+         },
+         "optimism.torn.eth":{
+            "url":"optimism.torn.eth",
+            "name":"optimism.torn.eth",
+            "cachedUrl":"https://optimism.torn.cash/"
+         },
+         "optimism.relaymy.eth":{
+            "url":"optimism.relaymy.eth",
+            "name":"optimism.relaymy.eth",
+            "cachedUrl":"https://optimism.relaymy.xyz/"
          }
       }
    }

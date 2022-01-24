@@ -1033,10 +1033,14 @@ async function main() {
         })
       })
     program
-      .command('balance <address> [token_address]')
+      .command('balance [address] [token_address]')
       .description('Check ETH and ERC20 balance')
       .action(async (address, tokenAddress) => {
         await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true })
+        if (!address && senderAccount) {
+          console.log("Using address",senderAccount,"from private key")
+          address = senderAccount;
+        }
         await printETHBalance({ address, name: 'Account', symbol: netSymbol })
         if (tokenAddress) {
           await printERC20Balance({ address, name: 'Account', tokenAddress })

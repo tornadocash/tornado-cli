@@ -341,8 +341,9 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
     // using private key
 
     // check if the address of recepient matches with the account of provided private key from environment to prevent accidental use of deposit address for withdrawal transaction.
-    const { address } = await web3.eth.accounts.privateKeyToAccount('0x' + PRIVATE_KEY)
-    assert(recipient.toLowerCase() == address.toLowerCase(), 'Withdrawal amount recepient mismatches with the account of provided private key from environment file')
+    assert(recipient.toLowerCase() == senderAccount.toLowerCase(), 'Withdrawal recepient mismatches with the account of provided private key from environment file')
+    const checkBalance = await web3.eth.getBalance(senderAccount)
+    assert(checkBalance !== 0, 'You have 0 balance, make sure to fund account by withdrawing from tornado using relayer first')
 
     const { proof, args } = await generateProof({ deposit, currency, amount, recipient, refund })
 
@@ -380,10 +381,7 @@ async function send({ address, amount, tokenAddress }) {
     console.log('Sent',amount,(await erc20.methods.symbol().call()),'to',address);
   } else {
     const balance = await web3.eth.getBalance(senderAccount)
-    if (balance == 0) {
-      console.error("You have 0 balance, can't send")
-      process.exit(1);
-    }
+    assert(balance !== 0, "You have 0 balance, can't send transaction")
     if (amount) {
       toSend = amount * Math.pow(10, 18)
       if (balance < toSend) {

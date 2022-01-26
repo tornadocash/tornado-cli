@@ -724,7 +724,7 @@ async function fetchEvents({ type, currency, amount}) {
             await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
                 fromBlock: i,
                 toBlock: i+chunks-1,
-            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events to block:", i) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
+            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events to block:", i+chunks-1) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
           }
 
           async function mapDepositEvents() {

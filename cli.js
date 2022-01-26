@@ -894,11 +894,13 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
     TOKEN_AMOUNT = 1e19
     senderAccount = (await web3.eth.getAccounts())[0]
   } else {
+    let ipOptions = {};
     if (torPort) {
       console.log("Using tor network")
       web3Options = { agent: { https: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort) }, timeout: 60000 }
       // Use forked web3-providers-http from local file to modify user-agent header value which improves privacy.
       web3 = new Web3(new Web3HttpProvider(rpc, web3Options), null, { transactionConfirmationBlocks: 1 })
+      ipOptions = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
     } else if (rpc.includes("ipc")) {
       console.log("Using ipc connection")
       web3 = new Web3(new Web3.providers.IpcProvider(rpc, net), null, { transactionConfirmationBlocks: 1 })
@@ -910,6 +912,9 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
       console.log("Connecting to remote node")
       web3 = new Web3(rpc, null, { transactionConfirmationBlocks: 1 })
     }
+    const fetchRemoteIP = await axios.get('https://ip.tornado.cash', ipOptions)
+    const { country, ip } = fetchRemoteIP.data
+    console.log('Your remote IP address is',ip,'from',country+'.');
     contractJson = require('./build/contracts/TornadoProxy.abi.json')
     instanceJson = require('./build/contracts/Instance.abi.json')
     circuit = require('./build/circuits/tornado.json')
@@ -918,10 +923,12 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
     ETH_AMOUNT = process.env.ETH_AMOUNT
     TOKEN_AMOUNT = process.env.TOKEN_AMOUNT
     const privKey = process.env.PRIVATE_KEY
-    if (privKey.includes("0x")) {
-      PRIVATE_KEY = process.env.PRIVATE_KEY.substring(2)
-    } else {
-      PRIVATE_KEY = process.env.PRIVATE_KEY
+    if (privKey) {
+      if (privKey.includes("0x")) {
+        PRIVATE_KEY = process.env.PRIVATE_KEY.substring(2)
+      } else {
+        PRIVATE_KEY = process.env.PRIVATE_KEY
+      }
     }
     if (PRIVATE_KEY) {
       const account = web3.eth.accounts.privateKeyToAccount('0x' + PRIVATE_KEY)
@@ -1026,10 +1033,14 @@ async function main() {
         })
       })
     program
-      .command('balance <address> [token_address]')
+      .command('balance [address] [token_address]')
       .description('Check ETH and ERC20 balance')
       .action(async (address, tokenAddress) => {
         await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true })
+        if (!address && senderAccount) {
+          console.log("Using address",senderAccount,"from private key")
+          address = senderAccount;
+        }
         await printETHBalance({ address, name: 'Account', symbol: netSymbol })
         if (tokenAddress) {
           await printERC20Balance({ address, name: 'Account', tokenAddress })

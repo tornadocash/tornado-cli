@@ -963,8 +963,8 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
     senderAccount = (await web3.eth.getAccounts())[0]
   } else {
     try {
+      netSymbol = getCurrentNetworkSymbol()
       if (balanceCheck) {
-        netSymbol = getCurrentNetworkSymbol()
         currency = netSymbol.toLowerCase()
         amount = Object.keys(config.deployments[`netId${netId}`][currency].instanceAddress)[0]
       }
@@ -981,7 +981,6 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
       process.exit(1)
     }
   }
-  netSymbol = getCurrentNetworkSymbol()
   tornado = new web3.eth.Contract(contractJson, tornadoAddress)
   tornadoContract = new web3.eth.Contract(instanceJson, tornadoInstance)
   contractAddress = tornadoAddress

@@ -951,9 +951,9 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   }
 
   if (isLocalRPC) {
-    tornadoAddress = currency === 'eth' ? contractJson.networks[netId].address : erc20tornadoJson.networks[netId].address
-    tokenAddress = currency !== 'eth' ? erc20ContractJson.networks[netId].address : null
     netSymbol = getCurrentNetworkSymbol()
+    tornadoAddress = currency === netSymbol.toLowerCase() ? contractJson.networks[netId].address : erc20tornadoJson.networks[netId].address
+    tokenAddress = currency !== netSymbol.toLowerCase() ? erc20ContractJson.networks[netId].address : null
     deployedBlockNumber = 0
     senderAccount = (await web3.eth.getAccounts())[0]
   } else {
@@ -970,7 +970,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
       if (!tornadoAddress) {
         throw new Error()
       }
-      tokenAddress = config.deployments[`netId${netId}`][currency].tokenAddress
+      tokenAddress = currency !== netSymbol.toLowerCase() ? config.deployments[`netId${netId}`][currency].tokenAddress : null
     } catch (e) {
       console.error('There is no such tornado instance, check the currency and amount you provide', e)
       process.exit(1)
@@ -980,7 +980,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   tornado = new web3.eth.Contract(contractJson, tornadoAddress)
   tornadoContract = new web3.eth.Contract(instanceJson, tornadoInstance)
   contractAddress = tornadoAddress
-  erc20 = currency !== 'eth' ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : {}
+  erc20 = currency !== netSymbol.toLowerCase() ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : {}
   erc20Address = tokenAddress
 }
 

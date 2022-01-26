@@ -349,6 +349,11 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
     console.log('Submitting withdraw transaction')
     await generateTransaction(contractAddress, await tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
   }
+  if (currency === netSymbol.toLowerCase()) {
+    await printETHBalance({ address: recipient, name: 'Recipient', symbol: currency.toUpperCase() })
+  } else {
+    await printERC20Balance({ address: recipient, name: 'Recipient' })
+  }
   console.log('Done withdrawal from Tornado Cash')
 }
 
@@ -379,23 +384,25 @@ async function send({ address, amount, tokenAddress }) {
       console.error("You have 0 balance, can't send")
       process.exit(1);
     }
-    if (!amount) {
+    if (amount) {
+      toSend = amount * Math.pow(10, 18)
+      if (balance < toSend) {
+        console.error("You have",web3.utils.fromWei(toHex(balance)),netSymbol+", you can't send more than you have.")
+        process.exit(1);
+      }
+    } else {
       console.log('Amount not defined, sending all available amounts')
       const gasPrice = await fetchGasPrice()
       const gasLimit = 21000;
       if (netId == 1 || netId == 5) {
         const priorityFee = await gasPrices(3)
-        amount = (balance - (gasLimit * (parseInt(gasPrice) + parseInt(priorityFee))))
+        toSend = (balance - (gasLimit * (parseInt(gasPrice) + parseInt(priorityFee))))
       } else {
-        amount = (balance - (gasLimit * parseInt(gasPrice)))
+        toSend = (balance - (gasLimit * parseInt(gasPrice)))
       }
     }
-    if (balance < amount) {
-      console.error("You have",web3.utils.fromWei(toHex(balance)),netSymbol,", you can't send more than you have.")
-      process.exit(1);
-    }
-    await generateTransaction(address, null, amount)
-    console.log('Sent',web3.utils.fromWei(toHex(amount)),netSymbol,'to',address);
+    await generateTransaction(address, null, toSend)
+    console.log('Sent',web3.utils.fromWei(toHex(toSend)),netSymbol,'to',address);
   }
 }
 

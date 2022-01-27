@@ -16,6 +16,7 @@ const Web3HttpProvider = require('web3-providers-http');
 const buildGroth16 = require('websnark/src/groth16')
 const websnarkUtils = require('websnark/src/utils')
 const { toWei, fromWei, toBN, BN } = require('web3-utils')
+const BigNumber = require('bignumber.js');
 const config = require('./config')
 const program = require('commander')
 const { GasPriceOracle } = require('gas-price-oracle')
@@ -42,19 +43,19 @@ function toHex(number, length = 32) {
 
 /** Display ETH account balance */
 async function printETHBalance({ address, name }) {
-  const checkBalance = await web3.eth.getBalance(address)
-  console.log(`${name} balance is`, web3.utils.fromWei(checkBalance),`${netSymbol}`)
+  const checkBalance = new BigNumber(await web3.eth.getBalance(address));
+  console.log(`${name} balance is`, checkBalance.div(BigNumber(10).pow(18)).toString(),`${netSymbol}`)
 }
 
 /** Display ERC20 account balance */
 async function printERC20Balance({ address, name, tokenAddress }) {
   const erc20ContractJson = require('./build/contracts/ERC20Mock.json')
   erc20 = tokenAddress ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : erc20
-  const tokenBalance = await erc20.methods.balanceOf(address).call()
+  const tokenBalance = new BigNumber(await erc20.methods.balanceOf(address).call())
   const tokenDecimals = await erc20.methods.decimals().call()
   const tokenName = await erc20.methods.name().call()
   const tokenSymbol = await erc20.methods.symbol().call()
-  console.log(`${name}`,tokenName,`Token Balance is`,toDecimals(tokenBalance, tokenDecimals, (tokenBalance.length + tokenDecimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),tokenSymbol)
+  console.log(`${name}`,tokenName,`Token Balance is`,tokenBalance.div(BigNumber(10).pow(tokenDecimals)).toString(),tokenSymbol)
 }
 
 async function generateTransaction(to, encodedData, value = 0) {
@@ -373,39 +374,39 @@ async function send({ address, amount, tokenAddress }) {
   if (tokenAddress) {
     const erc20ContractJson = require('./build/contracts/ERC20Mock.json')
     erc20 = new web3.eth.Contract(erc20ContractJson.abi, tokenAddress)
-    const tokenBalance = await erc20.methods.balanceOf(senderAccount).call()
+    const tokenBalance = new BigNumber(await erc20.methods.balanceOf(senderAccount).call())
     const tokenDecimals = await erc20.methods.decimals().call()
     const tokenSymbol = await erc20.methods.symbol().call()
-    const toSend = amount * Math.pow(10, tokenDecimals)
-    if (tokenBalance < toSend) {
-      console.error("You have",toDecimals(tokenBalance, tokenDecimals, (tokenBalance.length + tokenDecimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),tokenSymbol,", you can't send more than you have")
+    const toSend = new BigNumber(amount).times(BigNumber(10).pow(tokenDecimals))
+    if (tokenBalance.lt(toSend)) {
+      console.error("You have",tokenBalance.div(BigNumber(10).pow(tokenDecimals)).toString(),tokenSymbol,", you can't send more than you have")
       process.exit(1);
     }
-    const encodeTransfer = erc20.methods.transfer(address, toBN(toSend)).encodeABI()
+    const encodeTransfer = erc20.methods.transfer(address, toSend).encodeABI()
     await generateTransaction(tokenAddress, encodeTransfer)
     console.log('Sent',amount,tokenSymbol,'to',address);
   } else {
-    const balance = await web3.eth.getBalance(senderAccount)
-    assert(balance !== 0, "You have 0 balance, can't send transaction")
+    const balance = new BigNumber(await web3.eth.getBalance(senderAccount));
+    assert(balance.toNumber() !== 0, "You have 0 balance, can't send transaction")
     if (amount) {
-      toSend = amount * Math.pow(10, 18)
-      if (balance < toSend) {
-        console.error("You have",web3.utils.fromWei(toHex(balance)),netSymbol+", you can't send more than you have.")
+      toSend = new BigNumber(amount).times(BigNumber(10).pow(18))
+      if (balance.lt(toSend)) {
+        console.error("You have",balance.div(BigNumber(10).pow(18)),netSymbol+", you can't send more than you have.")
         process.exit(1);
       }
     } else {
       console.log('Amount not defined, sending all available amounts')
-      const gasPrice = await fetchGasPrice()
-      const gasLimit = 21000;
+      const gasPrice = new BigNumber(await fetchGasPrice());
+      const gasLimit = new BigNumber(21000);
       if (netId == 1 || netId == 5) {
-        const priorityFee = await gasPrices(3)
-        toSend = (balance - (gasLimit * (parseInt(gasPrice) + parseInt(priorityFee))))
+        const priorityFee = new BigNumber(await gasPrices(3));
+        toSend = balance.minus(gasLimit.times(gasPrice.plus(priorityFee)));
       } else {
-        toSend = (balance - (gasLimit * parseInt(gasPrice)))
+        toSend = balance.minus(gasLimit.times(gasPrice));
       }
     }
     await generateTransaction(address, null, toSend)
-    console.log('Sent',web3.utils.fromWei(toHex(toSend)),netSymbol,'to',address);
+    console.log('Sent',toSend.div(BigNumber(10).pow(18)).toString(),netSymbol,'to',address);
   }
 }
 

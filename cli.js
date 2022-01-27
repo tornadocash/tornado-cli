@@ -41,8 +41,8 @@ function toHex(number, length = 32) {
 }
 
 /** Display ETH account balance */
-async function printETHBalance({ address, name, symbol }) {
-  console.log(`${name} balance is`, web3.utils.fromWei(await web3.eth.getBalance(address)),`${symbol}`)
+async function printETHBalance({ address, name }) {
+  console.log(`${name} balance is`, web3.utils.fromWei(await web3.eth.getBalance(address)),`${netSymbol}`)
 }
 
 /** Display ERC20 account balance */
@@ -159,13 +159,13 @@ async function deposit({ currency, amount }) {
   console.log(`Your note: ${noteString}`)
   await backupNote({ currency, amount, netId, note, noteString })
   if (currency === netSymbol.toLowerCase()) {
-    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract', symbol: currency.toUpperCase() })
-    await printETHBalance({ address: senderAccount, name: 'Sender account', symbol: currency.toUpperCase() })
+    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' })
+    await printETHBalance({ address: senderAccount, name: 'Sender account' })
     const value = isLocalRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 })
     console.log('Submitting deposit transaction')
     await generateTransaction(contractAddress, await tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI(), value)
-    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract', symbol: currency.toUpperCase() })
-    await printETHBalance({ address: senderAccount, name: 'Sender account', symbol: currency.toUpperCase() })
+    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' })
+    await printETHBalance({ address: senderAccount, name: 'Sender account' })
   } else {
     // a token
     await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' })
@@ -351,7 +351,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
     await generateTransaction(contractAddress, await tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
   }
   if (currency === netSymbol.toLowerCase()) {
-    await printETHBalance({ address: recipient, name: 'Recipient', symbol: currency.toUpperCase() })
+    await printETHBalance({ address: recipient, name: 'Recipient' })
   } else {
     await printERC20Balance({ address: recipient, name: 'Recipient' })
   }
@@ -1045,7 +1045,7 @@ async function main() {
           console.log("Using address",senderAccount,"from private key")
           address = senderAccount;
         }
-        await printETHBalance({ address, name: 'Account', symbol: netSymbol })
+        await printETHBalance({ address, name: 'Account' })
         if (tokenAddress) {
           await printERC20Balance({ address, name: 'Account', tokenAddress })
         }

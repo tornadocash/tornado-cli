@@ -948,6 +948,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   groth16 = await buildGroth16()
   netId = await web3.eth.net.getId()
   netName = getCurrentNetworkName()
+  netSymbol = getCurrentNetworkSymbol()
   if (noteNetId && Number(noteNetId) !== netId) {
     throw new Error('This note is for a different network. Specify the --rpc option explicitly')
   }
@@ -956,14 +957,12 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   }
 
   if (isLocalRPC) {
-    netSymbol = getCurrentNetworkSymbol()
     tornadoAddress = currency === netSymbol.toLowerCase() ? contractJson.networks[netId].address : erc20tornadoJson.networks[netId].address
     tokenAddress = currency !== netSymbol.toLowerCase() ? erc20ContractJson.networks[netId].address : null
     deployedBlockNumber = 0
     senderAccount = (await web3.eth.getAccounts())[0]
   } else {
     try {
-      netSymbol = getCurrentNetworkSymbol()
       if (balanceCheck) {
         currency = netSymbol.toLowerCase()
         amount = Object.keys(config.deployments[`netId${netId}`][currency].instanceAddress)[0]

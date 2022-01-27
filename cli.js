@@ -41,17 +41,20 @@ function toHex(number, length = 32) {
 }
 
 /** Display ETH account balance */
-async function printETHBalance({ address, name, symbol }) {
-  console.log(`${name} balance is`, web3.utils.fromWei(await web3.eth.getBalance(address)),`${symbol}`)
+async function printETHBalance({ address, name }) {
+  const checkBalance = await web3.eth.getBalance(address)
+  console.log(`${name} balance is`, web3.utils.fromWei(checkBalance),`${netSymbol}`)
 }
 
 /** Display ERC20 account balance */
 async function printERC20Balance({ address, name, tokenAddress }) {
   const erc20ContractJson = require('./build/contracts/ERC20Mock.json')
   erc20 = tokenAddress ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : erc20
-  balance = await erc20.methods.balanceOf(address).call()
-  decimals = await erc20.methods.decimals().call()
-  console.log(`${name}`,(await erc20.methods.name().call()),`Token Balance is`,toDecimals(balance, decimals, (balance.length + decimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),(await erc20.methods.symbol().call()))
+  const tokenBalance = await erc20.methods.balanceOf(address).call()
+  const tokenDecimals = await erc20.methods.decimals().call()
+  const tokenName = await erc20.methods.name().call()
+  const tokenSymbol = await erc20.methods.symbol().call()
+  console.log(`${name}`,tokenName,`Token Balance is`,toDecimals(tokenBalance, tokenDecimals, (tokenBalance.length + tokenDecimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),tokenSymbol)
 }
 
 async function generateTransaction(to, encodedData, value = 0) {
@@ -159,13 +162,13 @@ async function deposit({ currency, amount }) {
   console.log(`Your note: ${noteString}`)
   await backupNote({ currency, amount, netId, note, noteString })
   if (currency === netSymbol.toLowerCase()) {
-    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract', symbol: currency.toUpperCase() })
-    await printETHBalance({ address: senderAccount, name: 'Sender account', symbol: currency.toUpperCase() })
+    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' })
+    await printETHBalance({ address: senderAccount, name: 'Sender account' })
     const value = isLocalRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 })
     console.log('Submitting deposit transaction')
-    await generateTransaction(contractAddress, await tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI(), value)
-    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract', symbol: currency.toUpperCase() })
-    await printETHBalance({ address: senderAccount, name: 'Sender account', symbol: currency.toUpperCase() })
+    await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI(), value)
+    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' })
+    await printETHBalance({ address: senderAccount, name: 'Sender account' })
   } else {
     // a token
     await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' })
@@ -174,18 +177,18 @@ async function deposit({ currency, amount }) {
     const tokenAmount = isLocalRPC ? TOKEN_AMOUNT : fromDecimals({ amount, decimals })
     if (isLocalRPC) {
       console.log('Minting some test tokens to deposit')
-      await generateTransaction(erc20Address, await erc20.methods.mint(senderAccount, tokenAmount).encodeABI())
+      await generateTransaction(erc20Address, erc20.methods.mint(senderAccount, tokenAmount).encodeABI())
     }
 
     const allowance = await erc20.methods.allowance(senderAccount, tornado._address).call({ from: senderAccount })
     console.log('Current allowance is', fromWei(allowance))
     if (toBN(allowance).lt(toBN(tokenAmount))) {
       console.log('Approving tokens for deposit')
-      await generateTransaction(erc20Address, await erc20.methods.approve(tornado._address, tokenAmount).encodeABI())
+      await generateTransaction(erc20Address, erc20.methods.approve(tornado._address, tokenAmount).encodeABI())
     }
 
     console.log('Submitting deposit transaction')
-    await generateTransaction(contractAddress, await tornado.methods.deposit(toHex(deposit.commitment)).encodeABI())
+    await generateTransaction(contractAddress, tornado.methods.deposit(toHex(deposit.commitment)).encodeABI())
     await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' })
     await printERC20Balance({ address: senderAccount, name: 'Sender account' })
   }
@@ -341,13 +344,19 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
     // using private key
 
     // check if the address of recepient matches with the account of provided private key from environment to prevent accidental use of deposit address for withdrawal transaction.
-    const { address } = await web3.eth.accounts.privateKeyToAccount('0x' + PRIVATE_KEY)
-    assert(recipient.toLowerCase() == address.toLowerCase(), 'Withdrawal amount recepient mismatches with the account of provided private key from environment file')
+    assert(recipient.toLowerCase() == senderAccount.toLowerCase(), 'Withdrawal recepient mismatches with the account of provided private key from environment file')
+    const checkBalance = await web3.eth.getBalance(senderAccount)
+    assert(checkBalance !== 0, 'You have 0 balance, make sure to fund account by withdrawing from tornado using relayer first')
 
     const { proof, args } = await generateProof({ deposit, currency, amount, recipient, refund })
 
     console.log('Submitting withdraw transaction')
-    await generateTransaction(contractAddress, await tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
+    await generateTransaction(contractAddress, tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
+  }
+  if (currency === netSymbol.toLowerCase()) {
+    await printETHBalance({ address: recipient, name: 'Recipient' })
+  } else {
+    await printERC20Balance({ address: recipient, name: 'Recipient' })
   }
   console.log('Done withdrawal from Tornado Cash')
 }
@@ -364,38 +373,39 @@ async function send({ address, amount, tokenAddress }) {
   if (tokenAddress) {
     const erc20ContractJson = require('./build/contracts/ERC20Mock.json')
     erc20 = new web3.eth.Contract(erc20ContractJson.abi, tokenAddress)
-    const balance = await erc20.methods.balanceOf(senderAccount).call()
-    const decimals = await erc20.methods.decimals().call()
-    const toSend = amount * Math.pow(10, decimals)
-    if (balance < toSend) {
-      console.error("You have",toDecimals(balance, decimals, (balance.length + decimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),(await erc20.methods.symbol().call()),", you can't send more than you have")
+    const tokenBalance = await erc20.methods.balanceOf(senderAccount).call()
+    const tokenDecimals = await erc20.methods.decimals().call()
+    const tokenSymbol = await erc20.methods.symbol().call()
+    const toSend = amount * Math.pow(10, tokenDecimals)
+    if (tokenBalance < toSend) {
+      console.error("You have",toDecimals(tokenBalance, tokenDecimals, (tokenBalance.length + tokenDecimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),tokenSymbol,", you can't send more than you have")
       process.exit(1);
     }
-    await generateTransaction(tokenAddress, await erc20.methods.transfer(address, toBN(toSend)).encodeABI())
-    console.log('Sent',amount,(await erc20.methods.symbol().call()),'to',address);
+    const encodeTransfer = erc20.methods.transfer(address, toBN(toSend)).encodeABI()
+    await generateTransaction(tokenAddress, encodeTransfer)
+    console.log('Sent',amount,tokenSymbol,'to',address);
   } else {
     const balance = await web3.eth.getBalance(senderAccount)
-    if (balance == 0) {
-      console.error("You have 0 balance, can't send")
-      process.exit(1);
-    }
-    if (!amount) {
+    assert(balance !== 0, "You have 0 balance, can't send transaction")
+    if (amount) {
+      toSend = amount * Math.pow(10, 18)
+      if (balance < toSend) {
+        console.error("You have",web3.utils.fromWei(toHex(balance)),netSymbol+", you can't send more than you have.")
+        process.exit(1);
+      }
+    } else {
       console.log('Amount not defined, sending all available amounts')
       const gasPrice = await fetchGasPrice()
       const gasLimit = 21000;
       if (netId == 1 || netId == 5) {
         const priorityFee = await gasPrices(3)
-        amount = (balance - (gasLimit * (parseInt(gasPrice) + parseInt(priorityFee))))
+        toSend = (balance - (gasLimit * (parseInt(gasPrice) + parseInt(priorityFee))))
       } else {
-        amount = (balance - (gasLimit * parseInt(gasPrice)))
+        toSend = (balance - (gasLimit * parseInt(gasPrice)))
       }
     }
-    if (balance < amount) {
-      console.error("You have",web3.utils.fromWei(toHex(balance)),netSymbol,", you can't send more than you have.")
-      process.exit(1);
-    }
-    await generateTransaction(address, null, amount)
-    console.log('Sent',web3.utils.fromWei(toHex(amount)),netSymbol,'to',address);
+    await generateTransaction(address, null, toSend)
+    console.log('Sent',web3.utils.fromWei(toHex(toSend)),netSymbol,'to',address);
   }
 }
 
@@ -724,7 +734,7 @@ async function fetchEvents({ type, currency, amount}) {
             await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
                 fromBlock: i,
                 toBlock: i+chunks-1,
-            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events to block:", i) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
+            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events to block:", i+chunks-1) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
           }
 
           async function mapDepositEvents() {
@@ -943,6 +953,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   groth16 = await buildGroth16()
   netId = await web3.eth.net.getId()
   netName = getCurrentNetworkName()
+  netSymbol = getCurrentNetworkSymbol()
   if (noteNetId && Number(noteNetId) !== netId) {
     throw new Error('This note is for a different network. Specify the --rpc option explicitly')
   }
@@ -951,15 +962,13 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   }
 
   if (isLocalRPC) {
-    tornadoAddress = currency === 'eth' ? contractJson.networks[netId].address : erc20tornadoJson.networks[netId].address
-    tokenAddress = currency !== 'eth' ? erc20ContractJson.networks[netId].address : null
-    netSymbol = getCurrentNetworkSymbol()
+    tornadoAddress = currency === netSymbol.toLowerCase() ? contractJson.networks[netId].address : erc20tornadoJson.networks[netId].address
+    tokenAddress = currency !== netSymbol.toLowerCase() ? erc20ContractJson.networks[netId].address : null
     deployedBlockNumber = 0
     senderAccount = (await web3.eth.getAccounts())[0]
   } else {
     try {
       if (balanceCheck) {
-        netSymbol = getCurrentNetworkSymbol()
         currency = netSymbol.toLowerCase()
         amount = Object.keys(config.deployments[`netId${netId}`][currency].instanceAddress)[0]
       }
@@ -970,17 +979,16 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
       if (!tornadoAddress) {
         throw new Error()
       }
-      tokenAddress = config.deployments[`netId${netId}`][currency].tokenAddress
+      tokenAddress = currency !== netSymbol.toLowerCase() ? config.deployments[`netId${netId}`][currency].tokenAddress : null
     } catch (e) {
       console.error('There is no such tornado instance, check the currency and amount you provide', e)
       process.exit(1)
     }
   }
-  netSymbol = getCurrentNetworkSymbol()
   tornado = new web3.eth.Contract(contractJson, tornadoAddress)
   tornadoContract = new web3.eth.Contract(instanceJson, tornadoInstance)
   contractAddress = tornadoAddress
-  erc20 = currency !== 'eth' ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : {}
+  erc20 = currency !== netSymbol.toLowerCase() ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : {}
   erc20Address = tokenAddress
 }
 
@@ -1041,7 +1049,7 @@ async function main() {
           console.log("Using address",senderAccount,"from private key")
           address = senderAccount;
         }
-        await printETHBalance({ address, name: 'Account', symbol: netSymbol })
+        await printETHBalance({ address, name: 'Account' })
         if (tokenAddress) {
           await printERC20Balance({ address, name: 'Account', tokenAddress })
         }

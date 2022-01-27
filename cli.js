@@ -42,16 +42,19 @@ function toHex(number, length = 32) {
 
 /** Display ETH account balance */
 async function printETHBalance({ address, name }) {
-  console.log(`${name} balance is`, web3.utils.fromWei(await web3.eth.getBalance(address)),`${netSymbol}`)
+  const checkBalance = await web3.eth.getBalance(address)
+  console.log(`${name} balance is`, web3.utils.fromWei(checkBalance),`${netSymbol}`)
 }
 
 /** Display ERC20 account balance */
 async function printERC20Balance({ address, name, tokenAddress }) {
   const erc20ContractJson = require('./build/contracts/ERC20Mock.json')
   erc20 = tokenAddress ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : erc20
-  balance = await erc20.methods.balanceOf(address).call()
-  decimals = await erc20.methods.decimals().call()
-  console.log(`${name}`,(await erc20.methods.name().call()),`Token Balance is`,toDecimals(balance, decimals, (balance.length + decimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),(await erc20.methods.symbol().call()))
+  const tokenBalance = await erc20.methods.balanceOf(address).call()
+  const tokenDecimals = await erc20.methods.decimals().call()
+  const tokenName = await erc20.methods.name().call()
+  const tokenSymbol = await erc20.methods.symbol().call()
+  console.log(`${name}`,tokenName,`Token Balance is`,toDecimals(tokenBalance, tokenDecimals, (tokenBalance.length + tokenDecimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),tokenSymbol)
 }
 
 async function generateTransaction(to, encodedData, value = 0) {
@@ -163,7 +166,7 @@ async function deposit({ currency, amount }) {
     await printETHBalance({ address: senderAccount, name: 'Sender account' })
     const value = isLocalRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 })
     console.log('Submitting deposit transaction')
-    await generateTransaction(contractAddress, await tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI(), value)
+    await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI(), value)
     await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' })
     await printETHBalance({ address: senderAccount, name: 'Sender account' })
   } else {
@@ -174,18 +177,18 @@ async function deposit({ currency, amount }) {
     const tokenAmount = isLocalRPC ? TOKEN_AMOUNT : fromDecimals({ amount, decimals })
     if (isLocalRPC) {
       console.log('Minting some test tokens to deposit')
-      await generateTransaction(erc20Address, await erc20.methods.mint(senderAccount, tokenAmount).encodeABI())
+      await generateTransaction(erc20Address, erc20.methods.mint(senderAccount, tokenAmount).encodeABI())
     }
 
     const allowance = await erc20.methods.allowance(senderAccount, tornado._address).call({ from: senderAccount })
     console.log('Current allowance is', fromWei(allowance))
     if (toBN(allowance).lt(toBN(tokenAmount))) {
       console.log('Approving tokens for deposit')
-      await generateTransaction(erc20Address, await erc20.methods.approve(tornado._address, tokenAmount).encodeABI())
+      await generateTransaction(erc20Address, erc20.methods.approve(tornado._address, tokenAmount).encodeABI())
     }
 
     console.log('Submitting deposit transaction')
-    await generateTransaction(contractAddress, await tornado.methods.deposit(toHex(deposit.commitment)).encodeABI())
+    await generateTransaction(contractAddress, tornado.methods.deposit(toHex(deposit.commitment)).encodeABI())
     await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' })
     await printERC20Balance({ address: senderAccount, name: 'Sender account' })
   }
@@ -348,7 +351,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
     const { proof, args } = await generateProof({ deposit, currency, amount, recipient, refund })
 
     console.log('Submitting withdraw transaction')
-    await generateTransaction(contractAddress, await tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
+    await generateTransaction(contractAddress, tornado.methods.withdraw(tornadoInstance, proof, ...args).encodeABI())
   }
   if (currency === netSymbol.toLowerCase()) {
     await printETHBalance({ address: recipient, name: 'Recipient' })
@@ -370,15 +373,17 @@ async function send({ address, amount, tokenAddress }) {
   if (tokenAddress) {
     const erc20ContractJson = require('./build/contracts/ERC20Mock.json')
     erc20 = new web3.eth.Contract(erc20ContractJson.abi, tokenAddress)
-    const balance = await erc20.methods.balanceOf(senderAccount).call()
-    const decimals = await erc20.methods.decimals().call()
-    const toSend = amount * Math.pow(10, decimals)
-    if (balance < toSend) {
-      console.error("You have",toDecimals(balance, decimals, (balance.length + decimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),(await erc20.methods.symbol().call()),", you can't send more than you have")
+    const tokenBalance = await erc20.methods.balanceOf(senderAccount).call()
+    const tokenDecimals = await erc20.methods.decimals().call()
+    const tokenSymbol = await erc20.methods.symbol().call()
+    const toSend = amount * Math.pow(10, tokenDecimals)
+    if (tokenBalance < toSend) {
+      console.error("You have",toDecimals(tokenBalance, tokenDecimals, (tokenBalance.length + tokenDecimals)).toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ","),tokenSymbol,", you can't send more than you have")
       process.exit(1);
     }
-    await generateTransaction(tokenAddress, await erc20.methods.transfer(address, toBN(toSend)).encodeABI())
-    console.log('Sent',amount,(await erc20.methods.symbol().call()),'to',address);
+    const encodeTransfer = erc20.methods.transfer(address, toBN(toSend)).encodeABI()
+    await generateTransaction(tokenAddress, encodeTransfer)
+    console.log('Sent',amount,tokenSymbol,'to',address);
   } else {
     const balance = await web3.eth.getBalance(senderAccount)
     assert(balance !== 0, "You have 0 balance, can't send transaction")

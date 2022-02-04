@@ -906,9 +906,15 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
     senderAccount = (await web3.eth.getAccounts())[0]
   } else {
     let ipOptions = {};
-    if (torPort) {
+    if (torPort && rpc.includes("https")) {
       console.log("Using tor network")
       web3Options = { agent: { https: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort) }, timeout: 60000 }
+      // Use forked web3-providers-http from local file to modify user-agent header value which improves privacy.
+      web3 = new Web3(new Web3HttpProvider(rpc, web3Options), null, { transactionConfirmationBlocks: 1 })
+      ipOptions = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
+    } else if (torPort && rpc.includes("http")) {
+      console.log("Using tor network")
+      web3Options = { agent: { http: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort) }, timeout: 60000 }
       // Use forked web3-providers-http from local file to modify user-agent header value which improves privacy.
       web3 = new Web3(new Web3HttpProvider(rpc, web3Options), null, { transactionConfirmationBlocks: 1 })
       ipOptions = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }

@@ -22,12 +22,12 @@ const program = require('commander')
 const { GasPriceOracle } = require('gas-price-oracle')
 const SocksProxyAgent = require('socks-proxy-agent')
 
-let web3, tornado, tornadoContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId, netName, netSymbol
+let web3, tornado, tornadoContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId, netName, netSymbol, isLocalNode
 let MERKLE_TREE_HEIGHT, ETH_AMOUNT, TOKEN_AMOUNT, PRIVATE_KEY
 
 /** Whether we are in a browser or node.js */
 const inBrowser = typeof window !== 'undefined'
-let isLocalRPC = false
+let isTestRPC = false
 
 /** Generate random number of specified byte length */
 const rbigint = (nbytes) => snarkjs.bigInt.leBuff2int(crypto.randomBytes(nbytes))
@@ -56,6 +56,17 @@ async function printERC20Balance({ address, name, tokenAddress }) {
   const tokenName = await erc20.methods.name().call()
   const tokenSymbol = await erc20.methods.symbol().call()
   console.log(`${name}`,tokenName,`Token Balance is`,tokenBalance.div(BigNumber(10).pow(tokenDecimals)).toString(),tokenSymbol)
+}
+
+async function submitTransaction(signedTX) {
+  console.log("Submitting raw transaction to the node");
+  await web3.eth.sendSignedTransaction(signedTX)
+        .on('transactionHash', function (txHash) {
+          console.log(`View transaction on block explorer https://${getExplorerLink()}/tx/${txHash}`)
+        })
+        .on('error', function (e) {
+          console.error('on transactionHash error', e.message)
+        });
 }
 
 async function generateTransaction(to, encodedData, value = 0) {
@@ -116,13 +127,20 @@ async function generateTransaction(to, encodedData, value = 0) {
   }
   await txoptions();
   const signed = await web3.eth.accounts.signTransaction(tx, PRIVATE_KEY);
-  await web3.eth.sendSignedTransaction(signed.rawTransaction)
-        .on('transactionHash', function (txHash) {
-          console.log(`View transaction on block explorer https://${getExplorerLink()}/tx/${txHash}`)
-        })
-        .on('error', function (e) {
-          console.error('on transactionHash error', e.message)
-        });
+  if (!isLocalNode) {
+    await web3.eth.sendSignedTransaction(signed.rawTransaction)
+          .on('transactionHash', function (txHash) {
+            console.log(`View transaction on block explorer https://${getExplorerLink()}/tx/${txHash}`)
+          })
+          .on('error', function (e) {
+            console.error('on transactionHash error', e.message)
+          });
+  } else {
+    console.log('\n=============Raw TX=================','\n')
+    console.log(`Please submit this raw tx to https://${getExplorerLink()}/pushTx, or otherwise broadcast with node cli.js broadcast command.`,`\n`)
+    console.log(signed.rawTransaction,`\n`)
+    console.log('=====================================','\n')
+  }
 }
 
 /**
@@ -165,7 +183,7 @@ async function deposit({ currency, amount }) {
   if (currency === netSymbol.toLowerCase()) {
     await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' })
     await printETHBalance({ address: senderAccount, name: 'Sender account' })
-    const value = isLocalRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 })
+    const value = isTestRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 })
     console.log('Submitting deposit transaction')
     await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI(), value)
     await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' })
@@ -174,9 +192,9 @@ async function deposit({ currency, amount }) {
     // a token
     await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' })
     await printERC20Balance({ address: senderAccount, name: 'Sender account' })
-    const decimals = isLocalRPC ? 18 : config.deployments[`netId${netId}`][currency].decimals
-    const tokenAmount = isLocalRPC ? TOKEN_AMOUNT : fromDecimals({ amount, decimals })
-    if (isLocalRPC) {
+    const decimals = isTestRPC ? 18 : config.deployments[`netId${netId}`][currency].decimals
+    const tokenAmount = isTestRPC ? TOKEN_AMOUNT : fromDecimals({ amount, decimals })
+    if (isTestRPC) {
       console.log('Minting some test tokens to deposit')
       await generateTransaction(erc20Address, erc20.methods.mint(senderAccount, tokenAmount).encodeABI())
     }
@@ -306,7 +324,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
 
     const gasPrice = await fetchGasPrice()
 
-    const decimals = isLocalRPC ? 18 : config.deployments[`netId${netId}`][currency].decimals
+    const decimals = isTestRPC ? 18 : config.deployments[`netId${netId}`][currency].decimals
     const fee = calculateFee({
       currency,
       gasPrice,
@@ -577,7 +595,7 @@ function getCurrentNetworkName() {
     case 137:
       return 'Optimism'
     default:
-      return 'localRPC'
+      return 'testRPC'
   }
 }
 
@@ -617,7 +635,7 @@ async function fetchGasPrice() {
       const oracle = new GasPriceOracle(options)
       const gas = await oracle.gasPrices()
       return gasPricesETH(gas.instant)
-    } else if (netId == 5 || isLocalRPC) {
+    } else if (netId == 5 || isTestRPC) {
       return gasPrices(1)
     } else {
       const oracle = new GasPriceOracle(options)
@@ -887,7 +905,7 @@ async function loadWithdrawalData({ amount, currency, deposit }) {
 /**
  * Init web3, contracts, and snark
  */
-async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort, balanceCheck }) {
+async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort, balanceCheck, localMode }) {
   let contractJson, instanceJson, erc20ContractJson, erc20tornadoJson, tornadoAddress, tokenAddress
   // TODO do we need this? should it work in browser really?
   if (inBrowser) {
@@ -964,11 +982,15 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   if (noteNetId && Number(noteNetId) !== netId) {
     throw new Error('This note is for a different network. Specify the --rpc option explicitly')
   }
-  if (netName === "localRPC") {
-    isLocalRPC = true;
+  if (netName === "testRPC") {
+    isTestRPC = true;
+  }
+  if (localMode) {
+    console.log("Local mode detected: will not submit signed TX to remote node")
+    isLocalNode = true;
   }
 
-  if (isLocalRPC) {
+  if (isTestRPC) {
     tornadoAddress = currency === netSymbol.toLowerCase() ? contractJson.networks[netId].address : erc20tornadoJson.networks[netId].address
     tokenAddress = currency !== netSymbol.toLowerCase() ? erc20ContractJson.networks[netId].address : null
     deployedBlockNumber = 0
@@ -1019,6 +1041,7 @@ async function main() {
       .option('-r, --rpc <URL>', 'The RPC that CLI should interact with', 'http://localhost:8545')
       .option('-R, --relayer <URL>', 'Withdraw via relayer')
       .option('-T, --tor <PORT>', 'Optional tor port')
+      .option('-L, --local', 'Local Node - Does not submit signed transaction to the node')
     program
       .command('deposit <currency> <amount>')
       .description(
@@ -1026,7 +1049,7 @@ async function main() {
       )
       .action(async (currency, amount) => {
         currency = currency.toLowerCase()
-        await init({ rpc: program.rpc, currency, amount, torPort: program.tor })
+        await init({ rpc: program.rpc, currency, amount, torPort: program.tor, localMode: program.local })
         await deposit({ currency, amount })
       })
     program
@@ -1036,7 +1059,7 @@ async function main() {
       )
       .action(async (noteString, recipient, refund) => {
         const { currency, amount, netId, deposit } = parseNote(noteString)
-        await init({ rpc: program.rpc, noteNetId: netId, currency, amount, torPort: program.tor })
+        await init({ rpc: program.rpc, noteNetId: netId, currency, amount, torPort: program.tor, localMode: program.local })
         await withdraw({
           deposit,
           currency,
@@ -1065,8 +1088,15 @@ async function main() {
       .command('send <address> [amount] [token_address]')
       .description('Send ETH or ERC to address')
       .action(async (address, amount, tokenAddress) => {
-        await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true })
+        await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true, localMode: program.local  })
         await send({ address, amount, tokenAddress })
+      })
+    program
+      .command('broadcast <signedTX>')
+      .description('Submit signed TX to the remote node')
+      .action(async (signedTX) => {
+        await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true  })
+        await submitTransaction(signedTX)
       })
     program
       .command('compliance <note>')

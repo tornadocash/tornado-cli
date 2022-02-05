@@ -168,6 +168,10 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
             "name":"Ankr BSC Public RPC",
             "url":"https://bscrpc.com"
          },
+         "publicRpcNodeReal":{
+            "name":"NodeReal BSC Public RPC",
+            "url":"https://binance.nodereal.io"
+         },
          "MyEtherWallet":{
             "name":"MyEtherWallet",
             "url":"https://nodes.mewapi.io/rpc/bsc"

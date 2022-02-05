@@ -59,7 +59,7 @@ async function printERC20Balance({ address, name, tokenAddress }) {
 }
 
 async function submitTransaction(signedTX) {
-  console.log("Submitting raw transaction to the node");
+  console.log("Submitting transaction to the remote node");
   await web3.eth.sendSignedTransaction(signedTX)
         .on('transactionHash', function (txHash) {
           console.log(`View transaction on block explorer https://${getExplorerLink()}/tx/${txHash}`)
@@ -73,7 +73,6 @@ async function generateTransaction(to, encodedData, value = 0) {
   const nonce = await web3.eth.getTransactionCount(senderAccount)
   const gasPrice = await fetchGasPrice()
   let gasLimit;
-  let tx = {}
 
   async function estimateGas() {
     const fetchedGas = await web3.eth.estimateGas({
@@ -84,10 +83,10 @@ async function generateTransaction(to, encodedData, value = 0) {
       data  : encodedData
     })
     const bumped = Math.floor(fetchedGas * 1.3)
-    gasLimit = web3.utils.toHex(bumped)
+    return web3.utils.toHex(bumped)
   }
   if (encodedData) {
-    await estimateGas();
+    gasLimit = await estimateGas();
   } else {
     gasLimit = web3.utils.toHex(21000);
   }
@@ -95,7 +94,7 @@ async function generateTransaction(to, encodedData, value = 0) {
   async function txoptions() {
     // Generate EIP-1559 transaction
     if (netId == 1) {
-      tx = {
+      return {
         to                   : to,
         value                : value,
         nonce                : nonce,
@@ -105,7 +104,7 @@ async function generateTransaction(to, encodedData, value = 0) {
         data                 : encodedData
       }
     } else if (netId == 5 || netId == 137 || netId == 43114) {
-      tx = {
+      return {
         to                   : to,
         value                : value,
         nonce                : nonce,
@@ -115,7 +114,7 @@ async function generateTransaction(to, encodedData, value = 0) {
         data                 : encodedData
       }
     } else {
-      tx = {
+      return {
         to       : to,
         value    : value,
         nonce    : nonce,
@@ -125,16 +124,10 @@ async function generateTransaction(to, encodedData, value = 0) {
       }
     }
   }
-  await txoptions();
+  const tx = await txoptions();
   const signed = await web3.eth.accounts.signTransaction(tx, PRIVATE_KEY);
   if (!isLocalNode) {
-    await web3.eth.sendSignedTransaction(signed.rawTransaction)
-          .on('transactionHash', function (txHash) {
-            console.log(`View transaction on block explorer https://${getExplorerLink()}/tx/${txHash}`)
-          })
-          .on('error', function (e) {
-            console.error('on transactionHash error', e.message)
-          });
+    await submitTransaction(signed.rawTransaction);
   } else {
     console.log('\n=============Raw TX=================','\n')
     console.log(`Please submit this raw tx to https://${getExplorerLink()}/pushTx, or otherwise broadcast with node cli.js broadcast command.`,`\n`)

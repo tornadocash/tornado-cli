@@ -945,9 +945,13 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
       console.log("Connecting to remote node")
       web3 = new Web3(rpc, null, { transactionConfirmationBlocks: 1 })
     }
-    const fetchRemoteIP = await axios.get('https://ip.tornado.cash', ipOptions)
-    const { country, ip } = fetchRemoteIP.data
-    console.log('Your remote IP address is',ip,'from',country+'.');
+    try {
+      const fetchRemoteIP = await axios.get('https://ip.tornado.cash', ipOptions)
+      const { country, ip } = fetchRemoteIP.data
+      console.log('Your remote IP address is',ip,'from',country+'.');
+    } catch (error) {
+      console.error('Could not fetch remote IP from ip.tornado.cash, use VPN if the problem repeats.');
+    }
     contractJson = require('./build/contracts/TornadoProxy.abi.json')
     instanceJson = require('./build/contracts/Instance.abi.json')
     circuit = require('./build/circuits/tornado.json')

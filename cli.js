@@ -700,7 +700,7 @@ function initJson(file) {
     return new Promise((resolve, reject) => {
         fs.readFile(file, 'utf8', (error, data) => {
             if (error) {
-                reject(error);
+                resolve([]);
             }
             try {
               resolve(JSON.parse(data));
@@ -750,10 +750,16 @@ async function fetchEvents({ type, currency, amount}) {
         for (let i=startBlock; i < targetBlock; i+=chunks) {
           let fetchedEvents = [];
           async function fetchLatestEvents(i) {
+            let j;
+            if (i+chunks-1 > targetBlock) {
+              j = targetBlock;
+            } else {
+              j = i+chunks-1;
+            }
             await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
                 fromBlock: i,
-                toBlock: i+chunks-1,
-            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events to block:", i+chunks-1) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
+                toBlock: j,
+            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events to block:", j) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
           }
 
           async function mapDepositEvents() {

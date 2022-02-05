@@ -94,7 +94,7 @@ async function generateTransaction(to, encodedData, value = 0) {
 
   async function txoptions() {
     // Generate EIP-1559 transaction
-    if (netId == 1 || netId == 5) {
+    if (netId == 1) {
       tx = {
         to                   : to,
         value                : value,
@@ -104,7 +104,7 @@ async function generateTransaction(to, encodedData, value = 0) {
         gas                  : gasLimit,
         data                 : encodedData
       }
-    } else if (netId == 137 || netId == 43114) {
+    } else if (netId == 5 || netId == 137 || netId == 43114) {
       tx = {
         to                   : to,
         value                : value,
@@ -207,7 +207,7 @@ async function deposit({ currency, amount }) {
     }
 
     console.log('Submitting deposit transaction')
-    await generateTransaction(contractAddress, tornado.methods.deposit(toHex(deposit.commitment)).encodeABI())
+    await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI())
     await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' })
     await printERC20Balance({ address: senderAccount, name: 'Sender account' })
   }

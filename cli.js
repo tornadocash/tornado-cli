@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// Temporary demo client
 // Works both in browser and node.js
 
 require('dotenv').config()

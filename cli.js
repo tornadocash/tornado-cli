@@ -581,7 +581,7 @@ function getCurrentNetworkName() {
     case 56:
       return 'BinanceSmartChain'
     case 100:
-      return 'xDai'
+      return 'GnosisChain'
     case 137:
       return 'Polygon'
     case 42161:
@@ -822,7 +822,7 @@ async function fetchEvents({ type, currency, amount}) {
       const updatedEvents = await initJson(fileName);
       const updatedBlock = updatedEvents[updatedEvents.length - 1].blockNumber
       console.log("Cache updated for Tornado",type,amount,currency,"instance to block",updatedBlock,"successfully")
-      console.log('Total events:', updatedEvents.length)
+      console.log(`Total ${type}s:`, updatedEvents.length)
       return updatedEvents;
     }
     const events = await loadUpdatedEvents();

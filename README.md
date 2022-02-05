@@ -230,15 +230,15 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
    "netId100":{
       "rpcUrls":{
          "publicRpc":{
-            "name":"xDAI Chain RPC",
-            "url":"https://rpc.xdaichain.com"
+            "name":"Gnosis Chain RPC",
+            "url":"https://rpc.gnosischain.com"
          },
          "publicRpc2":{
-            "name":"xDAI Chain RPC2",
+            "name":"Gnosis Chain RPC2",
             "url":"https://xdai.poanetwork.dev"
          },
          "publicRpc3":{
-            "name":"xDAI Chain RPC3",
+            "name":"Gnosis Chain RPC3",
             "url":"https://dai.poa.network/"
          }
       },

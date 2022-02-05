@@ -154,19 +154,23 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
       "rpcUrls":{
          "publicRpc1":{
             "name":"BSC Public RPC 1",
-            "url":"https://bsc-dataseed.binance.org/"
+            "url":"https://bsc-dataseed.binance.org"
          },
          "publicRpc2":{
             "name":"BSC Public RPC 2",
-            "url":"https://bsc-dataseed1.defibit.io/"
+            "url":"https://bsc-dataseed1.defibit.io"
          },
          "publicRpc3":{
             "name":"BSC Public RPC 3",
-            "url":"https://bsc-dataseed1.ninicoin.io/"
+            "url":"https://bsc-dataseed1.ninicoin.io"
+         },
+         "publicRpcAnkr":{
+            "name":"Ankr BSC Public RPC",
+            "url":"https://bscrpc.com"
          },
          "MyEtherWallet":{
             "name":"MyEtherWallet",
-            "url":"https://nodes.mewapi.io/rpc/bsc/"
+            "url":"https://nodes.mewapi.io/rpc/bsc"
          }
       },
       "relayers":{

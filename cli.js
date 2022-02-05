@@ -592,7 +592,7 @@ function getCurrentNetworkName() {
       return 'Goerli'
     case 42:
       return 'Kovan'
-    case 137:
+    case 10:
       return 'Optimism'
     default:
       return 'testRPC'

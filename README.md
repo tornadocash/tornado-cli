@@ -457,6 +457,41 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
          }
       }
    },
+   "netId10":{
+      "rpcUrls":{
+         "Optimism":{
+            "name":"Optimism Public RPC",
+            "url":"https://mainnet.optimism.io"
+         }
+      },
+      "relayers":{
+         "optimism.t-relay.eth":{
+            "url":"optimism.t-relay.eth",
+            "name":"optimism.t-relay.eth",
+            "cachedUrl":"https://optimism.t-relay.online/"
+         },
+         "optimism.therelayer.eth":{
+            "url":"optimism.therelayer.eth",
+            "name":"optimism.therelayer.eth",
+            "cachedUrl":"https://optimism.therelayer.xyz/"
+         },
+         "optimism.relayer-service.eth":{
+            "url":"optimism.relayer-service.eth",
+            "name":"optimism.relayer-service.eth",
+            "cachedUrl":"https://optimism-relayer.hertz.zone/"
+         },
+         "optimism.torn.eth":{
+            "url":"optimism.torn.eth",
+            "name":"optimism.torn.eth",
+            "cachedUrl":"https://optimism.torn.cash/"
+         },
+         "optimism.relaymy.eth":{
+            "url":"optimism.relaymy.eth",
+            "name":"optimism.relaymy.eth",
+            "cachedUrl":"https://optimism.relaymy.xyz/"
+         }
+      }
+   },
    "netId5":{
       "rpcUrls":{
          "Infura":{
@@ -545,41 +580,6 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
             "url":"goerli-v2.defidevotee.eth",
             "name":"goerli-v2.defidevotee.eth",
             "cachedUrl":"https://goerli-v2.defidevotee.xyz"
-         }
-      }
-   },
-   "netId10":{
-      "rpcUrls":{
-         "Optimism":{
-            "name":"Optimism Public RPC",
-            "url":"https://mainnet.optimism.io"
-         }
-      },
-      "relayers":{
-         "optimism.t-relay.eth":{
-            "url":"optimism.t-relay.eth",
-            "name":"optimism.t-relay.eth",
-            "cachedUrl":"https://optimism.t-relay.online/"
-         },
-         "optimism.therelayer.eth":{
-            "url":"optimism.therelayer.eth",
-            "name":"optimism.therelayer.eth",
-            "cachedUrl":"https://optimism.therelayer.xyz/"
-         },
-         "optimism.relayer-service.eth":{
-            "url":"optimism.relayer-service.eth",
-            "name":"optimism.relayer-service.eth",
-            "cachedUrl":"https://optimism-relayer.hertz.zone/"
-         },
-         "optimism.torn.eth":{
-            "url":"optimism.torn.eth",
-            "name":"optimism.torn.eth",
-            "cachedUrl":"https://optimism.torn.cash/"
-         },
-         "optimism.relaymy.eth":{
-            "url":"optimism.relaymy.eth",
-            "name":"optimism.relaymy.eth",
-            "cachedUrl":"https://optimism.relaymy.xyz/"
          }
       }
    }

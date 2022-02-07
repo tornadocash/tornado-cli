@@ -1,0 +1,16 @@
+[
+  {
+    "blockNumber": 17984811,
+    "transactionHash": "0x1641c8e61883c65f76636dc3a77057abfcfb455f7f8f55f8925e3054e6785fbc",
+    "nullifierHash": "0x09d9823e78e986aa66ba677cec3ee33fc17b4520a964b9318fdb47e9c7894e09",
+    "to": "0xb4Bd0BFDfF4a50df53b170A5DcDF2382fC1e7c0F",
+    "fee": "50000390000000000000"
+  },
+  {
+    "blockNumber": 19235330,
+    "transactionHash": "0x83bd9829e258964bc51c0297506f0740eeecadfa1a3e748766bb14fe5c4177ba",
+    "nullifierHash": "0x07790555f378407a490683e975686595190f9b9fe52afce0c02393d1b9f9471d",
+    "to": "0xAbA2bF03444123CE56677030C7fF015bF7D5e78d",
+    "fee": "10000780000000000000"
+  }
+]

@@ -330,7 +330,7 @@ module.exports = {
       },
       proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
     },
-    netId42161: {
+    netId10: {
       'eth': {
         'instanceAddress': {
           '0.1': '0x84443CFd09A48AF6eF360C6976C5392aC5023a1F',

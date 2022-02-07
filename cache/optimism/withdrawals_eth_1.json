@@ -1,0 +1,9 @@
+[
+  {
+    "blockNumber": 2384654,
+    "transactionHash": "0x1e707bbc3a3e0659ed7809b88a194e6d7a85fbd28d120616ab274e95f1d49a97",
+    "nullifierHash": "0x24c08ad2333f26bcaadcafc0ee73b2fbbc23a15aeeb985467b895be2e595fe4a",
+    "to": "0xf944069B489F1ebfF4C3C6a6014d58cBEf7C7009",
+    "fee": "300390000000000"
+  }
+]

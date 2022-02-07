@@ -154,19 +154,27 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
       "rpcUrls":{
          "publicRpc1":{
             "name":"BSC Public RPC 1",
-            "url":"https://bsc-dataseed.binance.org/"
+            "url":"https://bsc-dataseed.binance.org"
          },
          "publicRpc2":{
             "name":"BSC Public RPC 2",
-            "url":"https://bsc-dataseed1.defibit.io/"
+            "url":"https://bsc-dataseed1.defibit.io"
          },
          "publicRpc3":{
             "name":"BSC Public RPC 3",
-            "url":"https://bsc-dataseed1.ninicoin.io/"
+            "url":"https://bsc-dataseed1.ninicoin.io"
+         },
+         "publicRpcAnkr":{
+            "name":"Ankr BSC Public RPC",
+            "url":"https://bscrpc.com"
+         },
+         "publicRpcNodeReal":{
+            "name":"NodeReal BSC Public RPC",
+            "url":"https://binance.nodereal.io"
          },
          "MyEtherWallet":{
             "name":"MyEtherWallet",
-            "url":"https://nodes.mewapi.io/rpc/bsc/"
+            "url":"https://nodes.mewapi.io/rpc/bsc"
          }
       },
       "relayers":{
@@ -230,15 +238,15 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
    "netId100":{
       "rpcUrls":{
          "publicRpc":{
-            "name":"xDAI Chain RPC",
-            "url":"https://rpc.xdaichain.com"
+            "name":"Gnosis Chain RPC",
+            "url":"https://rpc.gnosischain.com"
          },
          "publicRpc2":{
-            "name":"xDAI Chain RPC2",
+            "name":"Gnosis Chain RPC2",
             "url":"https://xdai.poanetwork.dev"
          },
          "publicRpc3":{
-            "name":"xDAI Chain RPC3",
+            "name":"Gnosis Chain RPC3",
             "url":"https://dai.poa.network/"
          }
       },
@@ -457,6 +465,41 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
          }
       }
    },
+   "netId10":{
+      "rpcUrls":{
+         "Optimism":{
+            "name":"Optimism Public RPC",
+            "url":"https://mainnet.optimism.io"
+         }
+      },
+      "relayers":{
+         "optimism.t-relay.eth":{
+            "url":"optimism.t-relay.eth",
+            "name":"optimism.t-relay.eth",
+            "cachedUrl":"https://optimism.t-relay.online/"
+         },
+         "optimism.therelayer.eth":{
+            "url":"optimism.therelayer.eth",
+            "name":"optimism.therelayer.eth",
+            "cachedUrl":"https://optimism.therelayer.xyz/"
+         },
+         "optimism.relayer-service.eth":{
+            "url":"optimism.relayer-service.eth",
+            "name":"optimism.relayer-service.eth",
+            "cachedUrl":"https://optimism-relayer.hertz.zone/"
+         },
+         "optimism.torn.eth":{
+            "url":"optimism.torn.eth",
+            "name":"optimism.torn.eth",
+            "cachedUrl":"https://optimism.torn.cash/"
+         },
+         "optimism.relaymy.eth":{
+            "url":"optimism.relaymy.eth",
+            "name":"optimism.relaymy.eth",
+            "cachedUrl":"https://optimism.relaymy.xyz/"
+         }
+      }
+   },
    "netId5":{
       "rpcUrls":{
          "Infura":{
@@ -545,41 +588,6 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
             "url":"goerli-v2.defidevotee.eth",
             "name":"goerli-v2.defidevotee.eth",
             "cachedUrl":"https://goerli-v2.defidevotee.xyz"
-         }
-      }
-   },
-   "netId10":{
-      "rpcUrls":{
-         "Optimism":{
-            "name":"Optimism Public RPC",
-            "url":"https://mainnet.optimism.io"
-         }
-      },
-      "relayers":{
-         "optimism.t-relay.eth":{
-            "url":"optimism.t-relay.eth",
-            "name":"optimism.t-relay.eth",
-            "cachedUrl":"https://optimism.t-relay.online/"
-         },
-         "optimism.therelayer.eth":{
-            "url":"optimism.therelayer.eth",
-            "name":"optimism.therelayer.eth",
-            "cachedUrl":"https://optimism.therelayer.xyz/"
-         },
-         "optimism.relayer-service.eth":{
-            "url":"optimism.relayer-service.eth",
-            "name":"optimism.relayer-service.eth",
-            "cachedUrl":"https://optimism-relayer.hertz.zone/"
-         },
-         "optimism.torn.eth":{
-            "url":"optimism.torn.eth",
-            "name":"optimism.torn.eth",
-            "cachedUrl":"https://optimism.torn.cash/"
-         },
-         "optimism.relaymy.eth":{
-            "url":"optimism.relaymy.eth",
-            "name":"optimism.relaymy.eth",
-            "cachedUrl":"https://optimism.relaymy.xyz/"
          }
       }
    }

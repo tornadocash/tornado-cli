@@ -43,7 +43,7 @@ function toHex(number, length = 32) {
 /** Display ETH account balance */
 async function printETHBalance({ address, name }) {
   const checkBalance = new BigNumber(await web3.eth.getBalance(address));
-  console.log(`${name} balance is`, checkBalance.div(BigNumber(10).pow(18)).toString(),`${netSymbol}`)
+  console.log(`${name} balance is`, checkBalance.div(BigNumber(10).pow(18)).toString(), `${netSymbol}`)
 }
 
 /** Display ERC20 account balance */
@@ -54,18 +54,18 @@ async function printERC20Balance({ address, name, tokenAddress }) {
   const tokenDecimals = await erc20.methods.decimals().call()
   const tokenName = await erc20.methods.name().call()
   const tokenSymbol = await erc20.methods.symbol().call()
-  console.log(`${name}`,tokenName,`Token Balance is`,tokenBalance.div(BigNumber(10).pow(tokenDecimals)).toString(),tokenSymbol)
+  console.log(`${name}`, tokenName, `Token Balance is`, tokenBalance.div(BigNumber(10).pow(tokenDecimals)).toString(), tokenSymbol)
 }
 
 async function submitTransaction(signedTX) {
   console.log("Submitting transaction to the remote node");
   await web3.eth.sendSignedTransaction(signedTX)
-        .on('transactionHash', function (txHash) {
-          console.log(`View transaction on block explorer https://${getExplorerLink()}/tx/${txHash}`)
-        })
-        .on('error', function (e) {
-          console.error('on transactionHash error', e.message)
-        });
+    .on('transactionHash', function (txHash) {
+      console.log(`View transaction on block explorer https://${getExplorerLink()}/tx/${txHash}`)
+    })
+    .on('error', function (e) {
+      console.error('on transactionHash error', e.message)
+    });
 }
 
 async function generateTransaction(to, encodedData, value = 0) {
@@ -75,11 +75,11 @@ async function generateTransaction(to, encodedData, value = 0) {
 
   async function estimateGas() {
     const fetchedGas = await web3.eth.estimateGas({
-      from  : senderAccount,
-      to    : to,
-      value : value,
-      nonce : nonce,
-      data  : encodedData
+      from: senderAccount,
+      to: to,
+      value: value,
+      nonce: nonce,
+      data: encodedData
     })
     const bumped = Math.floor(fetchedGas * 1.3)
     return web3.utils.toHex(bumped)
@@ -94,32 +94,32 @@ async function generateTransaction(to, encodedData, value = 0) {
     // Generate EIP-1559 transaction
     if (netId == 1) {
       return {
-        to                   : to,
-        value                : value,
-        nonce                : nonce,
-        maxFeePerGas         : gasPrice,
-        maxPriorityFeePerGas : web3.utils.toHex(web3.utils.toWei('3', 'gwei')),
-        gas                  : gasLimit,
-        data                 : encodedData
+        to: to,
+        value: value,
+        nonce: nonce,
+        maxFeePerGas: gasPrice,
+        maxPriorityFeePerGas: web3.utils.toHex(web3.utils.toWei('3', 'gwei')),
+        gas: gasLimit,
+        data: encodedData
       }
     } else if (netId == 5 || netId == 137 || netId == 43114) {
       return {
-        to                   : to,
-        value                : value,
-        nonce                : nonce,
-        maxFeePerGas         : gasPrice,
-        maxPriorityFeePerGas : gasPrice,
-        gas                  : gasLimit,
-        data                 : encodedData
+        to: to,
+        value: value,
+        nonce: nonce,
+        maxFeePerGas: gasPrice,
+        maxPriorityFeePerGas: gasPrice,
+        gas: gasLimit,
+        data: encodedData
       }
     } else {
       return {
-        to       : to,
-        value    : value,
-        nonce    : nonce,
-        gasPrice : gasPrice,
-        gas      : gasLimit,
-        data     : encodedData
+        to: to,
+        value: value,
+        nonce: nonce,
+        gasPrice: gasPrice,
+        gas: gasLimit,
+        data: encodedData
       }
     }
   }
@@ -128,10 +128,10 @@ async function generateTransaction(to, encodedData, value = 0) {
   if (!isLocalNode) {
     await submitTransaction(signed.rawTransaction);
   } else {
-    console.log('\n=============Raw TX=================','\n')
-    console.log(`Please submit this raw tx to https://${getExplorerLink()}/pushTx, or otherwise broadcast with node cli.js broadcast command.`,`\n`)
-    console.log(signed.rawTransaction,`\n`)
-    console.log('=====================================','\n')
+    console.log('\n=============Raw TX=================', '\n')
+    console.log(`Please submit this raw tx to https://${getExplorerLink()}/pushTx, or otherwise broadcast with node cli.js broadcast command.`, `\n`)
+    console.log(signed.rawTransaction, `\n`)
+    console.log('=====================================', '\n')
   }
 }
 
@@ -151,9 +151,20 @@ function createDeposit({ nullifier, secret }) {
 async function backupNote({ currency, amount, netId, note, noteString }) {
   try {
     await fs.writeFileSync(`./backup-tornado-${currency}-${amount}-${netId}-${note.slice(0, 10)}.txt`, noteString, 'utf8');
-    console.log("Backed up deposit note as",`./backup-tornado-${currency}-${amount}-${netId}-${note.slice(0, 10)}.txt`)
+    console.log("Backed up deposit note as", `./backup-tornado-${currency}-${amount}-${netId}-${note.slice(0, 10)}.txt`)
   } catch (e) {
-    throw new Error('Writing backup note failed:',e)
+    throw new Error('Writing backup note failed:', e)
+  }
+}
+
+
+
+async function backupInvoice({ currency, amount, netId, commitmentNote, invoiceString }) {
+  try {
+    await fs.writeFileSync(`./backup-tornadoInvoice-${currency}-${amount}-${netId}-${commitmentNote.slice(0, 10)}.txt`, invoiceString, 'utf8');
+    console.log("Backed up invoice as", `./backup-tornadoInvoice-${currency}-${amount}-${netId}-${commitmentNote.slice(0, 10)}.txt`)
+  } catch (e) {
+    throw new Error('Writing backup note failed:', e)
   }
 }
 
@@ -206,6 +217,75 @@ async function deposit({ currency, amount }) {
 
   return noteString
 }
+
+
+
+/**
+ * create a Invoice
+ * @param currency Сurrency
+ * @param amount Deposit amount
+ */
+async function createInvoice({ currency, amount }) {
+  const deposit = createDeposit({
+    nullifier: rbigint(31),
+    secret: rbigint(31)
+  })
+  const note = toHex(deposit.preimage, 62)
+  const noteString = `tornado-${currency}-${amount}-${netId}-${note}`
+  console.log(`Your note: ${noteString}`)
+
+  const commitmentNote = toHex(deposit.commitment)
+  const invoiceString = `tornadoInvoice-${currency}-${amount}-${netId}-${commitmentNote}`
+  console.log(`Your invoice: ${invoiceString}`)
+
+  await backupNote({ currency, amount, netId, note, noteString })
+  await backupInvoice({ currency, amount, netId, commitmentNote, invoiceString })
+
+  return (noteString, invoiceString)
+}
+
+/**
+ * Make a payment
+ * @param currency Сurrency
+ * @param amount Deposit amount
+ */
+async function payInvoice({ currency, amount, netId, commitmentNote }) {
+  assert(senderAccount != null, 'Error! PRIVATE_KEY not found. Please provide PRIVATE_KEY in .env file if you deposit')
+
+  if (currency === netSymbol.toLowerCase()) {
+    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' })
+    await printETHBalance({ address: senderAccount, name: 'Sender account' })
+    const value = isTestRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 })
+    console.log('Submitting deposit transaction')
+    await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, toHex(commitmentNote), []).encodeABI(), value)
+    await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' })
+    await printETHBalance({ address: senderAccount, name: 'Sender account' })
+  } else {
+    // a token
+    await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' })
+    await printERC20Balance({ address: senderAccount, name: 'Sender account' })
+    const decimals = isTestRPC ? 18 : config.deployments[`netId${netId}`][currency].decimals
+    const tokenAmount = isTestRPC ? TOKEN_AMOUNT : fromDecimals({ amount, decimals })
+    if (isTestRPC) {
+      console.log('Minting some test tokens to deposit')
+      await generateTransaction(erc20Address, erc20.methods.mint(senderAccount, tokenAmount).encodeABI())
+    }
+
+    const allowance = await erc20.methods.allowance(senderAccount, tornado._address).call({ from: senderAccount })
+    console.log('Current allowance is', fromWei(allowance))
+    if (toBN(allowance).lt(toBN(tokenAmount))) {
+      console.log('Approving tokens for deposit')
+      await generateTransaction(erc20Address, erc20.methods.approve(tornado._address, tokenAmount).encodeABI())
+    }
+
+    console.log('Submitting deposit transaction')
+    await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, toHex(commitmentNote), []).encodeABI())
+    await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' })
+    await printERC20Balance({ address: senderAccount, name: 'Sender account' })
+  }
+}
+
+
 
 /**
  * Generate merkle tree for a deposit.
@@ -306,7 +386,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, torP
       throw new Error('ENS name resolving is not supported. Please provide DNS name of the relayer. See instuctions in README.md')
     }
     if (torPort) {
-      options = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
+      options = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:' + torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
     }
     const relayerStatus = await axios.get(relayerURL + '/status', options)
 
@@ -389,19 +469,19 @@ async function send({ address, amount, tokenAddress }) {
     const tokenSymbol = await erc20.methods.symbol().call()
     const toSend = new BigNumber(amount).times(BigNumber(10).pow(tokenDecimals))
     if (tokenBalance.lt(toSend)) {
-      console.error("You have",tokenBalance.div(BigNumber(10).pow(tokenDecimals)).toString(),tokenSymbol,", you can't send more than you have")
+      console.error("You have", tokenBalance.div(BigNumber(10).pow(tokenDecimals)).toString(), tokenSymbol, ", you can't send more than you have")
       process.exit(1);
     }
     const encodeTransfer = erc20.methods.transfer(address, toSend).encodeABI()
     await generateTransaction(tokenAddress, encodeTransfer)
-    console.log('Sent',amount,tokenSymbol,'to',address);
+    console.log('Sent', amount, tokenSymbol, 'to', address);
   } else {
     const balance = new BigNumber(await web3.eth.getBalance(senderAccount));
     assert(balance.toNumber() !== 0, "You have 0 balance, can't send transaction")
     if (amount) {
       toSend = new BigNumber(amount).times(BigNumber(10).pow(18))
       if (balance.lt(toSend)) {
-        console.error("You have",balance.div(BigNumber(10).pow(18)),netSymbol+", you can't send more than you have.")
+        console.error("You have", balance.div(BigNumber(10).pow(18)), netSymbol + ", you can't send more than you have.")
         process.exit(1);
       }
     } else {
@@ -416,7 +496,7 @@ async function send({ address, amount, tokenAddress }) {
       }
     }
     await generateTransaction(address, null, toSend)
-    console.log('Sent',toSend.div(BigNumber(10).pow(18)).toString(),netSymbol,'to',address);
+    console.log('Sent', toSend.div(BigNumber(10).pow(18)).toString(), netSymbol, 'to', address);
   }
 }
 
@@ -689,18 +769,18 @@ function waitForTxReceipt({ txHash, attempts = 60, delay = 1000 }) {
 }
 
 function initJson(file) {
-    return new Promise((resolve, reject) => {
-        fs.readFile(file, 'utf8', (error, data) => {
-            if (error) {
-                resolve([]);
-            }
-            try {
-              resolve(JSON.parse(data));
-            } catch (error) {
-              resolve([]);
-            }
-        });
+  return new Promise((resolve, reject) => {
+    fs.readFile(file, 'utf8', (error, data) => {
+      if (error) {
+        resolve([]);
+      }
+      try {
+        resolve(JSON.parse(data));
+      } catch (error) {
+        resolve([]);
+      }
     });
+  });
 };
 
 function loadCachedEvents({ type, currency, amount }) {
@@ -716,7 +796,7 @@ function loadCachedEvents({ type, currency, amount }) {
       }
     }
   } catch (err) {
-    console.log("Error fetching cached files, syncing from block",deployedBlockNumber)
+    console.log("Error fetching cached files, syncing from block", deployedBlockNumber)
     return {
       events: [],
       lastBlock: deployedBlockNumber,
@@ -724,102 +804,102 @@ function loadCachedEvents({ type, currency, amount }) {
   }
 }
 
-async function fetchEvents({ type, currency, amount}) {
-    if (type === "withdraw") {
-      type = "withdrawal"
-    }
+async function fetchEvents({ type, currency, amount }) {
+  if (type === "withdraw") {
+    type = "withdrawal"
+  }
 
-    const cachedEvents = loadCachedEvents({ type, currency, amount })
-    const startBlock = cachedEvents.lastBlock + 1
+  const cachedEvents = loadCachedEvents({ type, currency, amount })
+  const startBlock = cachedEvents.lastBlock + 1
 
-    console.log("Loaded cached",amount,currency.toUpperCase(),type,"events for",startBlock,"block")
-    console.log("Fetching",amount,currency.toUpperCase(),type,"events for",netName,"network")
+  console.log("Loaded cached", amount, currency.toUpperCase(), type, "events for", startBlock, "block")
+  console.log("Fetching", amount, currency.toUpperCase(), type, "events for", netName, "network")
 
-    async function syncEvents() {
-      try {
-        let targetBlock = await web3.eth.getBlockNumber();
-        let chunks = 1000;
-        for (let i=startBlock; i < targetBlock; i+=chunks) {
-          let fetchedEvents = [];
-          async function fetchLatestEvents(i) {
-            let j;
-            if (i+chunks-1 > targetBlock) {
-              j = targetBlock;
-            } else {
-              j = i+chunks-1;
-            }
-            await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
-                fromBlock: i,
-                toBlock: j,
-            }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched",amount,currency.toUpperCase(),type,"events to block:", j) }, err => { console.error(i + " failed fetching",type,"events from node", err); process.exit(1); }).catch(console.log);
+  async function syncEvents() {
+    try {
+      let targetBlock = await web3.eth.getBlockNumber();
+      let chunks = 1000;
+      for (let i = startBlock; i < targetBlock; i += chunks) {
+        let fetchedEvents = [];
+        async function fetchLatestEvents(i) {
+          let j;
+          if (i + chunks - 1 > targetBlock) {
+            j = targetBlock;
+          } else {
+            j = i + chunks - 1;
           }
-
-          async function mapDepositEvents() {
-            fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
-              const { commitment, leafIndex, timestamp } = returnValues
-              return {
-                blockNumber,
-                transactionHash,
-                commitment,
-                leafIndex: Number(leafIndex),
-                timestamp
-              }
-            })
-          }
-
-          async function mapWithdrawEvents() {
-            fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
-              const { nullifierHash, to, fee } = returnValues
-              return {
-                blockNumber,
-                transactionHash,
-                nullifierHash,
-                to,
-                fee
-              }
-            })
-          }
-
-          async function mapLatestEvents() {
-            if (type === "deposit"){
-              await mapDepositEvents();
-            } else {
-              await mapWithdrawEvents();
-            }
-          }
-
-          async function updateCache() {
-            try {
-              const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`
-              const localEvents = await initJson(fileName);
-              const events = localEvents.concat(fetchedEvents);
-              await fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8')
-            } catch (error) {
-              throw new Error('Writing cache file failed:',error)
-            }
-          }
-          await fetchLatestEvents(i);
-          await mapLatestEvents();
-          await updateCache();
+          await tornadoContract.getPastEvents(capitalizeFirstLetter(type), {
+            fromBlock: i,
+            toBlock: j,
+          }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched", amount, currency.toUpperCase(), type, "events to block:", j) }, err => { console.error(i + " failed fetching", type, "events from node", err); process.exit(1); }).catch(console.log);
         }
-      } catch (error) {
-        throw new Error("Error while updating cache")
-        process.exit(1)
+
+        async function mapDepositEvents() {
+          fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
+            const { commitment, leafIndex, timestamp } = returnValues
+            return {
+              blockNumber,
+              transactionHash,
+              commitment,
+              leafIndex: Number(leafIndex),
+              timestamp
+            }
+          })
+        }
+
+        async function mapWithdrawEvents() {
+          fetchedEvents = fetchedEvents.map(({ blockNumber, transactionHash, returnValues }) => {
+            const { nullifierHash, to, fee } = returnValues
+            return {
+              blockNumber,
+              transactionHash,
+              nullifierHash,
+              to,
+              fee
+            }
+          })
+        }
+
+        async function mapLatestEvents() {
+          if (type === "deposit") {
+            await mapDepositEvents();
+          } else {
+            await mapWithdrawEvents();
+          }
+        }
+
+        async function updateCache() {
+          try {
+            const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`
+            const localEvents = await initJson(fileName);
+            const events = localEvents.concat(fetchedEvents);
+            await fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8')
+          } catch (error) {
+            throw new Error('Writing cache file failed:', error)
+          }
+        }
+        await fetchLatestEvents(i);
+        await mapLatestEvents();
+        await updateCache();
       }
+    } catch (error) {
+      throw new Error("Error while updating cache")
+      process.exit(1)
     }
-    await syncEvents();
+  }
+  await syncEvents();
 
-    async function loadUpdatedEvents() {
-      const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`
-      const updatedEvents = await initJson(fileName);
-      const updatedBlock = updatedEvents[updatedEvents.length - 1].blockNumber
-      console.log("Cache updated for Tornado",type,amount,currency,"instance to block",updatedBlock,"successfully")
-      console.log(`Total ${type}s:`, updatedEvents.length)
-      return updatedEvents;
-    }
-    const events = await loadUpdatedEvents();
+  async function loadUpdatedEvents() {
+    const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`
+    const updatedEvents = await initJson(fileName);
+    const updatedBlock = updatedEvents[updatedEvents.length - 1].blockNumber
+    console.log("Cache updated for Tornado", type, amount, currency, "instance to block", updatedBlock, "successfully")
+    console.log(`Total ${type}s:`, updatedEvents.length)
+    return updatedEvents;
+  }
+  const events = await loadUpdatedEvents();
 
-    return events
+  return events
 }
 
 /**
@@ -844,6 +924,29 @@ function parseNote(noteString) {
     amount: match.groups.amount,
     netId,
     deposit
+  }
+}
+
+/**
+ * Parses Tornado.cash note
+ * @param invoiceString the note
+ */
+function parseInvoice(noteString) {
+  const noteRegex = /tornadoInvoice-(?<currency>\w+)-(?<amount>[\d.]+)-(?<netId>\d+)-0x(?<commitmentNote>[0-9a-fA-F]{64})/g
+  const match = noteRegex.exec(noteString)
+  if (!match) {
+    throw new Error('The note has invalid format')
+  }
+
+  const netId = Number(match.groups.netId)
+  const buf = Buffer.from(match.groups.commitmentNote, 'hex')
+  const commitmentNote = toHex(buf.slice(0, 32))
+
+  return {
+    currency: match.groups.currency,
+    amount: match.groups.amount,
+    netId,
+    commitmentNote
   }
 }
 
@@ -924,16 +1027,16 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
     let ipOptions = {};
     if (torPort && rpc.includes("https")) {
       console.log("Using tor network")
-      web3Options = { agent: { https: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort) }, timeout: 60000 }
+      web3Options = { agent: { https: new SocksProxyAgent('socks5h://127.0.0.1:' + torPort) }, timeout: 60000 }
       // Use forked web3-providers-http from local file to modify user-agent header value which improves privacy.
       web3 = new Web3(new Web3HttpProvider(rpc, web3Options), null, { transactionConfirmationBlocks: 1 })
-      ipOptions = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
+      ipOptions = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:' + torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
     } else if (torPort && rpc.includes("http")) {
       console.log("Using tor network")
-      web3Options = { agent: { http: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort) }, timeout: 60000 }
+      web3Options = { agent: { http: new SocksProxyAgent('socks5h://127.0.0.1:' + torPort) }, timeout: 60000 }
       // Use forked web3-providers-http from local file to modify user-agent header value which improves privacy.
       web3 = new Web3(new Web3HttpProvider(rpc, web3Options), null, { transactionConfirmationBlocks: 1 })
-      ipOptions = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:'+torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
+      ipOptions = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:' + torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
     } else if (rpc.includes("ipc")) {
       console.log("Using ipc connection")
       web3 = new Web3(new Web3.providers.IpcProvider(rpc, net), null, { transactionConfirmationBlocks: 1 })
@@ -948,7 +1051,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
     try {
       const fetchRemoteIP = await axios.get('https://ip.tornado.cash', ipOptions)
       const { country, ip } = fetchRemoteIP.data
-      console.log('Your remote IP address is',ip,'from',country+'.');
+      console.log('Your remote IP address is', ip, 'from', country + '.');
     } catch (error) {
       console.error('Could not fetch remote IP from ip.tornado.cash, use VPN if the problem repeats.');
     }
@@ -1054,6 +1157,29 @@ async function main() {
         await init({ rpc: program.rpc, currency, amount, torPort: program.tor, localMode: program.local })
         await deposit({ currency, amount })
       })
+
+    program
+      .command('invoice <currency> <amount>')
+      .description(
+        'Create invoice of specified currency and amount from default eth account and return the invoice (to pay) and note (to claim). The currency is one of (ETH|DAI|cDAI|USDC|cUSDC|USDT). The amount depends on currency, see config.js file or visit https://tornado.cash.'
+      )
+      .action(async (currency, amount) => {
+        currency = currency.toLowerCase()
+        await init({ rpc: program.rpc, currency, amount, torPort: program.tor, localMode: program.local })
+        await createInvoice({ currency, amount })
+      })
+
+    program
+      .command('payInvoice <invoice>')
+      .description(
+        'pay invoice of specified currency and amount from default eth account. The currency is one of (ETH|DAI|cDAI|USDC|cUSDC|USDT). The amount depends on currency, see config.js file or visit https://tornado.cash.'
+      )
+      .action(async (invoice) => {
+        const { currency, amount, netId, commitmentNote } = parseInvoice(invoice)
+        await init({ rpc: program.rpc, currency, amount, torPort: program.tor, localMode: program.local })
+        await payInvoice({ currency, amount, netId, commitmentNote })
+      })
+
     program
       .command('withdraw <note> <recipient> [ETH_purchase]')
       .description(
@@ -1078,7 +1204,7 @@ async function main() {
       .action(async (address, tokenAddress) => {
         await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true })
         if (!address && senderAccount) {
-          console.log("Using address",senderAccount,"from private key")
+          console.log("Using address", senderAccount, "from private key")
           address = senderAccount;
         }
         await printETHBalance({ address, name: 'Account' })
@@ -1090,14 +1216,14 @@ async function main() {
       .command('send <address> [amount] [token_address]')
       .description('Send ETH or ERC to address')
       .action(async (address, amount, tokenAddress) => {
-        await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true, localMode: program.local  })
+        await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true, localMode: program.local })
         await send({ address, amount, tokenAddress })
       })
     program
       .command('broadcast <signedTX>')
       .description('Submit signed TX to the remote node')
       .action(async (signedTX) => {
-        await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true  })
+        await init({ rpc: program.rpc, torPort: program.tor, balanceCheck: true })
         await submitTransaction(signedTX)
       })
     program
@@ -1121,7 +1247,7 @@ async function main() {
           console.log('The note was not spent')
           return
         }
-        console.log('=====================================','\n')
+        console.log('=====================================', '\n')
 
         const withdrawInfo = await loadWithdrawalData({ amount, currency, deposit })
         const withdrawalDate = new Date(withdrawInfo.timestamp * 1000)
@@ -1132,7 +1258,7 @@ async function main() {
         console.log('To          :', `https://${getExplorerLink()}/address/${withdrawInfo.to}`)
         console.log('Transaction :', `https://${getExplorerLink()}/tx/${withdrawInfo.txHash}`)
         console.log('Nullifier   :', withdrawInfo.nullifier)
-        console.log('=====================================','\n')
+        console.log('=====================================', '\n')
       })
     program
       .command('syncEvents <type> <currency> <amount>')
@@ -1144,7 +1270,7 @@ async function main() {
         currency = currency.toLowerCase()
         await init({ rpc: program.rpc, type, currency, amount, torPort: program.tor })
         const cachedEvents = await fetchEvents({ type, currency, amount })
-        console.log("Synced event for",type,amount,currency.toUpperCase(),netName,"Tornado instance to block",cachedEvents[cachedEvents.length - 1].blockNumber)
+        console.log("Synced event for", type, amount, currency.toUpperCase(), netName, "Tornado instance to block", cachedEvents[cachedEvents.length - 1].blockNumber)
       })
     program
       .command('test')

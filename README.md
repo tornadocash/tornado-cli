@@ -57,6 +57,32 @@ Transaction mined in block 17036120
 Done
 ```
 
+### using invoice
+![Invoice user flow](img/invoice.png)
+
+```bash
+node cli.js invoice ETH 0.1 --rpc https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161  
+Connecting to remote node
+Your remote IP address is xx.xx.xx.xx from xx.
+Your note: tornado-eth-0.1-5-0x1d9771a7b9f8b6c03d33116208ce8db1aa559d33e65d22dd2ff78375fc6b635f930536d2432b4bde0178c72cfc79d6b27023c5d9de60985f186b34c18c00
+Your invoice: tornadoInvoice-eth-0.1-5-0x1b680c7dda0c2dd1b85f0fe126d49b16ed594b3cd6d5114db5f4593877a6b84f
+Backed up deposit note as ./backup-tornado-eth-0.1-5-0x1d9771a7.txt
+Backed up invoice as ./backup-tornadoInvoice-eth-0.1-5-0x1b680c7d.txt
+```
+```bash
+node cli.js payInvoice tornadoInvoice-eth-0.1-5-0x1b680c7dda0c2dd1b85f0fe126d49b16ed594b3cd6d5114db5f4593877a6b84f --rpc https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
+Connecting to remote node
+Your remote IP address is xx.xx.xx.xx from xx.
+Tornado contract balance is 823.6 ETH
+Sender account balance is 0.79544229 ETH
+Submitting deposit transaction
+Submitting transaction to the remote node
+View transaction on block explorer https://goerli.etherscan.io/tx/0x6ded443caed8d6f2666841149532c64bee149a9a8e1070ed4c91a12dd1837747
+Tornado contract balance is 823.7 ETH
+Sender account balance is 0.694488819 ETH
+```
+
+
 ### List of public rpc & relayers for withdrawal
 
 Infura API key fetched from https://rpc.info (Same one with Metamask)

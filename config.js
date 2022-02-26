@@ -117,6 +117,7 @@ module.exports = {
       },
       proxy: '0xd90e2f925DA726b50C4Ed8D0Fb90Ad053324F31b',
       multicall: '0xeefBa1e63905eF1D7ACbA5a8513c70307C1cE441',
+      subgraph: 'https://api.thegraph.com/subgraphs/name/tornadocash/mainnet-tornado-subgraph',
     },
     netId5: {
       'eth': {
@@ -233,6 +234,7 @@ module.exports = {
       },
       proxy: '0x454d870a72e29d5e5697f635128d18077bd04c60',
       multicall: '0x77dCa2C955b15e9dE4dbBCf1246B4B85b651e50e',
+      subgraph: 'https://api.thegraph.com/subgraphs/name/tornadocash/goerli-tornado-subgraph',
     },
     netId56: {
       'bnb': {
@@ -254,6 +256,7 @@ module.exports = {
       },
       proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
       multicall: '0x41263cBA59EB80dC200F3E2544eda4ed6A90E76C',
+      subgraph: 'https://api.thegraph.com/subgraphs/name/tornadocash/bsc-tornado-subgraph',
     },
     netId100: {
       'xdai': {
@@ -275,6 +278,7 @@ module.exports = {
       },
       proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
       multicall: '0xb5b692a88BDFc81ca69dcB1d924f59f0413A602a',
+      subgraph: 'https://api.thegraph.com/subgraphs/name/tornadocash/xdai-tornado-subgraph',
     },
     netId137: {
       'matic': {
@@ -296,6 +300,7 @@ module.exports = {
       },
       proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
       multicall: '0x11ce4B23bD875D7F5C6a31084f55fDe1e9A87507',
+      subgraph: 'https://api.thegraph.com/subgraphs/name/tornadocash/matic-tornado-subgraph',
     },
     netId42161: {
       'eth': {
@@ -317,6 +322,7 @@ module.exports = {
       },
       proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
       multicall: '0xB064Fe785d8131653eE12f3581F9A55F6D6E1ca3',
+      subgraph: 'https://api.thegraph.com/subgraphs/name/tornadocash/arbitrum-tornado-subgraph',
     },
     netId43114: {
       'avax': {
@@ -336,6 +342,7 @@ module.exports = {
       },
       proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
       multicall: '0x98e2060F672FD1656a07bc12D7253b5e41bF3876',
+      subgraph: 'https://api.thegraph.com/subgraphs/name/tornadocash/avalanche-tornado-subgraph',
     },
     netId10: {
       'eth': {
@@ -357,6 +364,7 @@ module.exports = {
       },
       proxy: '0x0D5550d52428E7e3175bfc9550207e4ad3859b17',
       multicall: '0x142E2FEaC30d7fc3b61f9EE85FCCad8e560154cc',
+      subgraph: 'https://api.thegraph.com/subgraphs/name/tornadocash/optimism-tornado-subgraph',
     },
   }
 }

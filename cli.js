@@ -180,27 +180,68 @@ async function backupNote({ currency, amount, netId, note, noteString }) {
   }
 }
 
+async function backupInvoice({ currency, amount, netId, commitmentNote, invoiceString }) {
+  try {
+    await fs.writeFileSync(`./backup-tornadoInvoice-${currency}-${amount}-${netId}-${commitmentNote.slice(0, 10)}.txt`, invoiceString, 'utf8');
+    console.log("Backed up invoice as", `./backup-tornadoInvoice-${currency}-${amount}-${netId}-${commitmentNote.slice(0, 10)}.txt`)
+  } catch (e) {
+    throw new Error('Writing backup invoice failed:', e)
+  }
+}
+
 /**
- * Make a deposit
+ * create a deposit invoice.
  * @param currency Сurrency
  * @param amount Deposit amount
  */
-async function deposit({ currency, amount }) {
-  assert(senderAccount != null, 'Error! PRIVATE_KEY not found. Please provide PRIVATE_KEY in .env file if you deposit');
+async function createInvoice({ currency, amount, chainId }) {
   const deposit = createDeposit({
     nullifier: rbigint(31),
     secret: rbigint(31)
   });
   const note = toHex(deposit.preimage, 62);
-  const noteString = `tornado-${currency}-${amount}-${netId}-${note}`;
+  const noteString = `tornado-${currency}-${amount}-${chainId}-${note}`;
   console.log(`Your note: ${noteString}`);
-  await backupNote({ currency, amount, netId, note, noteString });
+
+  const commitmentNote = toHex(deposit.commitment);
+  const invoiceString = `tornadoInvoice-${currency}-${amount}-${chainId}-${commitmentNote}`;
+  console.log(`Your invoice for deposit: ${invoiceString}`);
+
+  await backupNote({ currency, amount, netId: chainId, note, noteString });
+  await backupInvoice({ currency, amount, netId: chainId, commitmentNote, invoiceString });
+
+  return (noteString, invoiceString);
+}
+
+/**
+ * Make a deposit
+ * @param currency Сurrency
+ * @param amount Deposit amount
+ */
+async function deposit({ currency, amount, commitmentNote }) {
+  assert(senderAccount != null, 'Error! PRIVATE_KEY not found. Please provide PRIVATE_KEY in .env file if you deposit');
+  let commitment;
+  if (!commitmentNote) {
+    console.log("Creating new random deposit note");
+    const deposit = createDeposit({
+      nullifier: rbigint(31),
+      secret: rbigint(31)
+    });
+    const note = toHex(deposit.preimage, 62);
+    const noteString = `tornado-${currency}-${amount}-${netId}-${note}`;
+    console.log(`Your note: ${noteString}`);
+    await backupNote({ currency, amount, netId, note, noteString });
+    commitment = toHex(deposit.commitment);
+  } else {
+    console.log("Using supplied invoice for deposit");
+    commitment = toHex(commitmentNote);
+  }
   if (currency === netSymbol.toLowerCase()) {
     await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' });
     await printETHBalance({ address: senderAccount, name: 'Sender account' });
     const value = isTestRPC ? ETH_AMOUNT : fromDecimals({ amount, decimals: 18 });
     console.log('Submitting deposit transaction');
-    await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI(), value);
+    await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, commitment, []).encodeABI(), value);
     await printETHBalance({ address: tornadoContract._address, name: 'Tornado contract' });
     await printETHBalance({ address: senderAccount, name: 'Sender account' });
   } else {
@@ -222,12 +263,14 @@ async function deposit({ currency, amount }) {
     }
 
     console.log('Submitting deposit transaction');
-    await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, toHex(deposit.commitment), []).encodeABI());
+    await generateTransaction(contractAddress, tornado.methods.deposit(tornadoInstance, commitment, []).encodeABI());
     await printERC20Balance({ address: tornadoContract._address, name: 'Tornado contract' });
     await printERC20Balance({ address: senderAccount, name: 'Sender account' });
   }
 
-  return noteString;
+  if(!commitmentNote) {
+    return noteString;
+  }
 }
 
 /**
@@ -1051,6 +1094,29 @@ function parseNote(noteString) {
   }
 }
 
+/**
+ * Parses Tornado.cash deposit invoice
+ * @param invoiceString the note
+ */
+function parseInvoice(invoiceString) {
+  const noteRegex = /tornadoInvoice-(?<currency>\w+)-(?<amount>[\d.]+)-(?<netId>\d+)-0x(?<commitmentNote>[0-9a-fA-F]{64})/g
+  const match = noteRegex.exec(invoiceString)
+  if (!match) {
+    throw new Error('The note has invalid format')
+  }
+
+  const netId = Number(match.groups.netId)
+  const buf = Buffer.from(match.groups.commitmentNote, 'hex')
+  const commitmentNote = toHex(buf.slice(0, 32))
+
+  return {
+    currency: match.groups.currency,
+    amount: match.groups.amount,
+    netId,
+    commitmentNote
+  }
+}
+
 async function loadDepositData({ amount, currency, deposit }) {
   try {
     const cachedEvents = await fetchEvents({ type: 'deposit', currency, amount });
@@ -1257,6 +1323,27 @@ async function main() {
       .option('-R, --relayer <URL>', 'Withdraw via relayer')
       .option('-T, --tor <PORT>', 'Optional tor port')
       .option('-L, --local', 'Local Node - Does not submit signed transaction to the node');
+    program
+      .command('createNote <currency> <amount> <chainId>')
+      .description(
+        'Create deposit note and invoice, allows generating private key like deposit notes from secure, offline environment. The currency is one of (ETH|DAI|cDAI|USDC|cUSDC|USDT). The amount depends on currency, see config.js file or visit https://tornado.cash.'
+      )
+      .action(async (currency, amount, chainId) => {
+        currency = currency.toLowerCase();
+        await createInvoice({ currency, amount, chainId });
+      });
+    program
+      .command('depositInvoice <invoice>')
+      .description(
+        'Submit a deposit of invoice from default eth account and return the resulting note.'
+      )
+      .action(async (invoice) => {
+        torPort = program.tor;
+        const { currency, amount, netId, commitmentNote } = parseInvoice(invoice);
+        await init({ rpc: program.rpc, currency, amount, localMode: program.local });
+        console.log("Creating", currency.toUpperCase(), amount, "deposit for", netName, "Tornado Cash Instance");
+        await deposit({ currency, amount, commitmentNote });
+      });
     program
       .command('deposit <currency> <amount>')
       .description(

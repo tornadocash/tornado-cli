@@ -8,6 +8,14 @@ Current cli version doesn't support [Anonymity Mining](https://tornado-cash.medi
 ### How to install tornado cli
 Download and install [node.js](https://nodejs.org/en/download/).
 
+You also need to install C++ build tools in order to do 'npm install', for more information please checkout https://github.com/nodejs/node-gyp#on-unix.
+
+For Windows: https://stackoverflow.com/a/64224475
+
+For MacOS: Install XCode Command Line Tools
+
+For Linux: Install make & gcc, for ubuntu `$ sudo apt-get install -y build-essentials`
+
 If you have git installed on your system, clone the master branch.
 
 ```bash
@@ -55,6 +63,38 @@ Sending withdraw transaction through relay
 Transaction submitted through the relay. View transaction on etherscan https://goerli.etherscan.io/tx/0xcb21ae8cad723818c6bc7273e83e00c8393fcdbe74802ce5d562acad691a2a7b
 Transaction mined in block 17036120
 Done
+```
+
+### (Optional) Creating Deposit Notes & Invoices offline
+One of the main features of tornado-cli is that it supports creating deposit notes & invoices inside the offline computing environment.
+
+After the private-key like notes are backed up somewhere safe, you can copy the created deposit invoices and use them to create new deposit transaction on online environment.
+
+To create deposit notes with `createNote` command.
+
+```bash
+$ node cli.js createNote ETH 0.1 5
+Your note: tornado-eth-0.1-5-0x1d9771a7b9f8b6c03d33116208ce8db1aa559d33e65d22dd2ff78375fc6b635f930536d2432b4bde0178c72cfc79d6b27023c5d9de60985f186b34c18c00
+Your invoice for deposit: tornadoInvoice-eth-0.1-5-0x1b680c7dda0c2dd1b85f0fe126d49b16ed594b3cd6d5114db5f4593877a6b84f
+Backed up deposit note as ./backup-tornado-eth-0.1-5-0x1d9771a7.txt
+Backed up invoice as ./backup-tornadoInvoice-eth-0.1-5-0x1b680c7d.txt
+```
+
+To create corresponding deposit transaction you only need invoice value, so that the deposit note could be stored without exposed anywhere.
+
+```bash
+node cli.js depositInvoice tornadoInvoice-eth-0.1-5-0x1b680c7dda0c2dd1b85f0fe126d49b16ed594b3cd6d5114db5f4593877a6b84f --rpc https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161 --tor 9150
+Using tor network
+Your remote IP address is xx.xx.xx.xx from xx.
+Creating ETH 0.1 deposit for Goerli network.
+Using supplied invoice for deposit
+Tornado contract balance is xxx.x ETH
+Sender account balance is x.xxxxxxx ETH
+Submitting deposit transaction
+Submitting transaction to the remote node
+View transaction on block explorer https://goerli.etherscan.io/tx/0x6ded443caed8d6f2666841149532c64bee149a9a8e1070ed4c91a12dd1837747
+Tornado contract balance is xxx.x ETH
+Sender account balance is x.xxxxxxx ETH
 ```
 
 ### List of public rpc & relayers for withdrawal

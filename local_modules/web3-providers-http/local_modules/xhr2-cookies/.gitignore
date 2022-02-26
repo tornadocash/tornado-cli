@@ -1,6 +1,4 @@
 node_modules
 yarn-error.log
 .idea
-**/*.js
-**/*.js.map
 !wallaby.js

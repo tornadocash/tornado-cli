@@ -15,7 +15,7 @@
     "main": "lib/index.js",
     "dependencies": {
         "web3-core-helpers": "1.6.1",
-        "xhr2-cookies": "file:./local_modules/xhr2-cookies"
+        "xhr2-cookies": "file:local_modules/xhr2-cookies"
     },
     "devDependencies": {
         "dtslint": "^3.4.1",

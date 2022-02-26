@@ -9,7 +9,7 @@ const snarkjs = require('snarkjs')
 const crypto = require('crypto')
 const circomlib = require('circomlib')
 const bigInt = snarkjs.bigInt
-const merkleTree = require('./lib/MerkleTree')
+const merkleTree = require('fixed-merkle-tree')
 const Web3 = require('web3')
 const Web3HttpProvider = require('web3-providers-http');
 const buildGroth16 = require('websnark/src/groth16')
@@ -232,7 +232,7 @@ async function generateMerkleProof(deposit, currency, amount) {
   const tree = new merkleTree(MERKLE_TREE_HEIGHT, leaves)
 
   // Validate that our data is correct
-  const root = await tree.root()
+  const root = tree.root()
   const isValidRoot = await tornadoContract.methods.isKnownRoot(toHex(root)).call()
   const isSpent = await tornadoContract.methods.isSpent(toHex(deposit.nullifierHash)).call()
   assert(isValidRoot === true, 'Merkle tree is corrupted')
@@ -240,7 +240,8 @@ async function generateMerkleProof(deposit, currency, amount) {
   assert(leafIndex >= 0, 'The deposit is not found in the tree')
 
   // Compute merkle proof of our commitment
-  return tree.path(leafIndex)
+  const { pathElements, pathIndices } = tree.path(leafIndex)
+  return { root, pathElements, pathIndices }
 }
 
 /**
@@ -253,7 +254,7 @@ async function generateMerkleProof(deposit, currency, amount) {
  */
 async function generateProof({ deposit, currency, amount, recipient, relayerAddress = 0, fee = 0, refund = 0 }) {
   // Compute merkle proof of our commitment
-  const { root, path_elements, path_index } = await generateMerkleProof(deposit, currency, amount)
+  const { root, pathElements, pathIndices } = await generateMerkleProof(deposit, currency, amount)
 
   // Prepare circuit input
   const input = {
@@ -268,8 +269,8 @@ async function generateProof({ deposit, currency, amount, recipient, relayerAddr
     // Private snark inputs
     nullifier: deposit.nullifier,
     secret: deposit.secret,
-    pathElements: path_elements,
-    pathIndices: path_index
+    pathElements: pathElements,
+    pathIndices: pathIndices
   }
 
   console.log('Generating SNARK proof')

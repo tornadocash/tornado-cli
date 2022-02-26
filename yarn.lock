@@ -800,6 +800,16 @@ circom@0.0.35:
     typedarray-to-buffer "^3.1.5"
     web3 "^1.2.11"
 
+"circomlib@git+https://github.com/tornadocash/circomlib.git#5beb6aee94923052faeecea40135d45b6ce6172c":
+  version "0.0.20"
+  resolved "git+https://github.com/tornadocash/circomlib.git#5beb6aee94923052faeecea40135d45b6ce6172c"
+  dependencies:
+    blake-hash "^1.1.0"
+    blake2b "^2.1.3"
+    snarkjs "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5"
+    typedarray-to-buffer "^3.1.5"
+    web3 "^1.2.11"
+
 class-is@^1.1.0:
   version "1.1.0"
   resolved "https://registry.npmjs.org/class-is/-/class-is-1.1.0.tgz#9d3c0fba0440d211d843cec3dedfa48055005825"
@@ -1710,6 +1720,14 @@ find-up@^3.0.0:
   integrity sha512-1yD6RmLI1XBfxugvORwlck6f75tYL+iR0jqwsOrOxMZyGYqUuDhJ0l4AXdO1iX/FTs9cBAMEk1gWSEx1kSbylg==
   dependencies:
     locate-path "^3.0.0"
+
+fixed-merkle-tree@^0.6.1:
+  version "0.6.1"
+  resolved "https://registry.yarnpkg.com/fixed-merkle-tree/-/fixed-merkle-tree-0.6.1.tgz#ff64bf0beb5d862e73d6c643950926b05b440926"
+  integrity sha512-cYwK8ZJRC/qlRwB6f1WDbqDi3SLSraFr9LQp948U3LmHZpF0VnuB0QOsLhMVwOpR1eJ178oiqz0JcwaupRU9kA==
+  dependencies:
+    circomlib "git+https://github.com/tornadocash/circomlib.git#5beb6aee94923052faeecea40135d45b6ce6172c"
+    snarkjs "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5"
 
 flat-cache@^2.0.1:
   version "2.0.1"
@@ -4180,11 +4198,11 @@ web3-providers-http@1.6.1:
     web3-core-helpers "1.6.1"
     xhr2-cookies "1.1.0"
 
-"web3-providers-http@file:./local_modules/web3-providers-http":
+"web3-providers-http@file:local_modules/web3-providers-http":
   version "1.6.1"
   dependencies:
     web3-core-helpers "1.6.1"
-    xhr2-cookies "file:./../../AppData/Local/Yarn/Cache/v6/npm-web3-providers-http-1.6.1-6879cf8b-ee02-483d-9a46-76314494b334-1638895560210/node_modules/web3-providers-http/local_modules/xhr2-cookies"
+    xhr2-cookies "file:local_modules/web3-providers-http/local_modules/xhr2-cookies"
 
 web3-providers-ipc@1.3.1:
   version "1.3.1"
@@ -4411,7 +4429,7 @@ xhr2-cookies@1.1.0:
   dependencies:
     cookiejar "^2.1.1"
 
-"xhr2-cookies@file:./local_modules/web3-providers-http/local_modules/xhr2-cookies":
+"xhr2-cookies@file:local_modules/web3-providers-http/local_modules/xhr2-cookies":
   version "1.1.0"
   dependencies:
     cookiejar "^2.1.1"

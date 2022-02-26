@@ -20,8 +20,9 @@ const config = require('./config');
 const program = require('commander');
 const { GasPriceOracle } = require('gas-price-oracle');
 const SocksProxyAgent = require('socks-proxy-agent');
+const is_ip_private = require('private-ip');
 
-let web3, tornado, tornadoContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId, netName, netSymbol, isLocalNode, multiCall;
+let web3, tornado, tornadoContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId, netName, netSymbol, doNotSubmitTx, multiCall, privateRpc;
 let MERKLE_TREE_HEIGHT, ETH_AMOUNT, TOKEN_AMOUNT, PRIVATE_KEY;
 
 /** Whether we are in a browser or node.js */
@@ -147,7 +148,7 @@ async function generateTransaction(to, encodedData, value = 0) {
   }
   const tx = txoptions();
   const signed = await web3.eth.accounts.signTransaction(tx, PRIVATE_KEY);
-  if (!isLocalNode) {
+  if (!doNotSubmitTx) {
     await submitTransaction(signed.rawTransaction);
   } else {
     console.log('\n=============Raw TX=================', '\n');
@@ -950,7 +951,7 @@ async function loadWithdrawalData({ amount, currency, deposit }) {
  * Init web3, contracts, and snark
  */
 async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort, balanceCheck, localMode }) {
-  let contractJson, instanceJson, erc20ContractJson, erc20tornadoJson, tornadoAddress, tokenAddress
+  let contractJson, instanceJson, erc20ContractJson, erc20tornadoJson, tornadoAddress, tokenAddress;
   // TODO do we need this? should it work in browser really?
   if (inBrowser) {
     // Initialize using injected web3 (Metamask)
@@ -991,12 +992,19 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
       console.log("Connecting to remote node");
       web3 = new Web3(rpc, null, { transactionConfirmationBlocks: 1 });
     }
-    try {
-      const fetchRemoteIP = await axios.get('https://ip.tornado.cash', ipOptions)
-      const { country, ip } = fetchRemoteIP.data
-      console.log('Your remote IP address is', ip, 'from', country + '.');
-    } catch (error) {
-      console.error('Could not fetch remote IP from ip.tornado.cash, use VPN if the problem repeats.');
+    const rpcHost = new URL(rpc).hostname;
+    const isIpPrivate = is_ip_private(rpcHost);
+    if (!isIpPrivate && !rpc.includes("localhost")) {
+      try {
+        const fetchRemoteIP = await axios.get('https://ip.tornado.cash', ipOptions);
+        const { country, ip } = fetchRemoteIP.data;
+        console.log('Your remote IP address is', ip, 'from', country + '.');
+      } catch (error) {
+        console.error('Could not fetch remote IP from ip.tornado.cash, use VPN if the problem repeats.');
+      }
+    } else if (isIpPrivate || rpc.includes("localhost")) {
+      console.log('Local RPC detected');
+      privateRpc = true;
     }
     contractJson = require('./build/contracts/TornadoProxy.abi.json');
     instanceJson = require('./build/contracts/Instance.abi.json');
@@ -1035,7 +1043,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', torPort,
   }
   if (localMode) {
     console.log("Local mode detected: will not submit signed TX to remote node");
-    isLocalNode = true;
+    doNotSubmitTx = true;
   }
 
   if (isTestRPC) {

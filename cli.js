@@ -65,7 +65,7 @@ async function printERC20Balance({ address, name, tokenAddress }) {
   let tokenDecimals, tokenBalance, tokenName, tokenSymbol;
   const erc20ContractJson = require('./build/contracts/ERC20Mock.json');
   erc20 = tokenAddress ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : erc20;
-  if (!isTestRPC || !multiCall) {
+  if (!isTestRPC && !multiCall) {
     const tokenCall = await useMultiCall([[tokenAddress, erc20.methods.balanceOf(address).encodeABI()], [tokenAddress, erc20.methods.decimals().encodeABI()], [tokenAddress, erc20.methods.name().encodeABI()], [tokenAddress, erc20.methods.symbol().encodeABI()]]);
     tokenDecimals = parseInt(tokenCall[1]);
     tokenBalance = new BigNumber(tokenCall[0]).div(BigNumber(10).pow(tokenDecimals));
@@ -220,7 +220,7 @@ async function createInvoice({ currency, amount, chainId }) {
  */
 async function deposit({ currency, amount, commitmentNote }) {
   assert(senderAccount != null, 'Error! PRIVATE_KEY not found. Please provide PRIVATE_KEY in .env file if you deposit');
-  let commitment;
+  let commitment, noteString;
   if (!commitmentNote) {
     console.log("Creating new random deposit note");
     const deposit = createDeposit({
@@ -228,7 +228,7 @@ async function deposit({ currency, amount, commitmentNote }) {
       secret: rbigint(31)
     });
     const note = toHex(deposit.preimage, 62);
-    const noteString = `tornado-${currency}-${amount}-${netId}-${note}`;
+    noteString = `tornado-${currency}-${amount}-${netId}-${note}`;
     console.log(`Your note: ${noteString}`);
     await backupNote({ currency, amount, netId, note, noteString });
     commitment = toHex(deposit.commitment);
@@ -300,7 +300,7 @@ async function generateMerkleProof(deposit, currency, amount) {
   // Validate that our data is correct
   const root = tree.root();
   let isValidRoot, isSpent;
-  if (!isTestRPC || !multiCall) {
+  if (!isTestRPC && !multiCall) {
     const callContract = await useMultiCall([[tornadoContract._address, tornadoContract.methods.isKnownRoot(toHex(root)).encodeABI()], [tornadoContract._address, tornadoContract.methods.isSpent(toHex(deposit.nullifierHash)).encodeABI()]])
     isValidRoot = web3.eth.abi.decodeParameter('bool', callContract[0]);
     isSpent = web3.eth.abi.decodeParameter('bool', callContract[1]);
@@ -459,7 +459,7 @@ async function send({ address, amount, tokenAddress }) {
     const erc20ContractJson = require('./build/contracts/ERC20Mock.json');
     erc20 = new web3.eth.Contract(erc20ContractJson.abi, tokenAddress);
     let tokenBalance, tokenDecimals, tokenSymbol;
-    if (!isTestRPC || !multiCall) {
+    if (!isTestRPC && !multiCall) {
       const callToken = await useMultiCall([[tokenAddress, erc20.methods.balanceOf(senderAccount).encodeABI()], [tokenAddress, erc20.methods.decimals().encodeABI()], [tokenAddress, erc20.methods.symbol().encodeABI()]]);
       tokenBalance = new BigNumber(callToken[0]);
       tokenDecimals = parseInt(callToken[1]);
@@ -1036,12 +1036,20 @@ async function fetchEvents({ type, currency, amount }) {
           if (Object.keys(result).length === 0) {
             i = latestTimestamp;
           } else {
-            const resultBlock = result[result.length - 1].blockNumber;
-            const getResultBlock = await web3.eth.getBlock(resultBlock);
-            const resultTimestamp = getResultBlock.timestamp;
-            await updateCache(result);
-            i = resultTimestamp;
-            console.log("Fetched", amount, currency.toUpperCase(), type, "events to block:", Number(resultBlock));
+            if (type === "deposit") {
+              const resultBlock = result[result.length - 1].blockNumber;
+              const resultTimestamp = result[result.length - 1].timestamp;
+              await updateCache(result);
+              i = resultTimestamp;
+              console.log("Fetched", amount, currency.toUpperCase(), type, "events to block:", Number(resultBlock));
+            } else {
+              const resultBlock = result[result.length - 1].blockNumber;
+              const getResultBlock = await web3.eth.getBlock(resultBlock);
+              const resultTimestamp = getResultBlock.timestamp;
+              await updateCache(result);
+              i = resultTimestamp;
+              console.log("Fetched", amount, currency.toUpperCase(), type, "events to block:", Number(resultBlock));
+            }
           }
         }
       } else {
@@ -1051,7 +1059,7 @@ async function fetchEvents({ type, currency, amount }) {
     }
     await fetchGraphEvents();
   }
-  if (!privateRpc || !subgraph || !isTestRPC) {
+  if (!privateRpc && !subgraph && !isTestRPC) {
     await syncGraphEvents();
   } else {
     await syncEvents();
@@ -1217,7 +1225,7 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', balanceC
     }
     const rpcHost = new URL(rpc).hostname;
     const isIpPrivate = is_ip_private(rpcHost);
-    if (!isIpPrivate && !rpc.includes("localhost")) {
+    if (!isIpPrivate && !rpc.includes("localhost") && !privateRpc) {
       try {
         const fetchRemoteIP = await axios.get('https://ip.tornado.cash', ipOptions);
         const { country, ip } = fetchRemoteIP.data;
@@ -1322,7 +1330,8 @@ async function main() {
       .option('-r, --rpc <URL>', 'The RPC that CLI should interact with', 'http://localhost:8545')
       .option('-R, --relayer <URL>', 'Withdraw via relayer')
       .option('-T, --tor <PORT>', 'Optional tor port')
-      .option('-L, --local', 'Local Node - Does not submit signed transaction to the node');
+      .option('-L, --local', 'Local Node - Does not submit signed transaction to the node')
+      .option('-o, --onlyrpc', 'Only rpc mode - Does not enable thegraph api nor remote ip detection');
     program
       .command('createNote <currency> <amount> <chainId>')
       .description(
@@ -1338,6 +1347,9 @@ async function main() {
         'Submit a deposit of invoice from default eth account and return the resulting note.'
       )
       .action(async (invoice) => {
+        if (program.onlyrpc) {
+          privateRpc = true;
+        }
         torPort = program.tor;
         const { currency, amount, netId, commitmentNote } = parseInvoice(invoice);
         await init({ rpc: program.rpc, currency, amount, localMode: program.local });
@@ -1350,6 +1362,9 @@ async function main() {
         'Submit a deposit of specified currency and amount from default eth account and return the resulting note. The currency is one of (ETH|DAI|cDAI|USDC|cUSDC|USDT). The amount depends on currency, see config.js file or visit https://tornado.cash.'
       )
       .action(async (currency, amount) => {
+        if (program.onlyrpc) {
+          privateRpc = true;
+        }
         currency = currency.toLowerCase();
         torPort = program.tor;
         await init({ rpc: program.rpc, currency, amount, localMode: program.local });
@@ -1361,6 +1376,9 @@ async function main() {
         'Withdraw a note to a recipient account using relayer or specified private key. You can exchange some of your deposit`s tokens to ETH during the withdrawal by specifing ETH_purchase (e.g. 0.01) to pay for gas in future transactions. Also see the --relayer option.'
       )
       .action(async (noteString, recipient, refund) => {
+        if (program.onlyrpc) {
+          privateRpc = true;
+        }
         const { currency, amount, netId, deposit } = parseNote(noteString);
         torPort = program.tor;
         await init({ rpc: program.rpc, noteNetId: netId, currency, amount, localMode: program.local });
@@ -1377,6 +1395,9 @@ async function main() {
       .command('balance [address] [token_address]')
       .description('Check ETH and ERC20 balance')
       .action(async (address, tokenAddress) => {
+        if (program.onlyrpc) {
+          privateRpc = true;
+        }
         torPort = program.tor;
         await init({ rpc: program.rpc, balanceCheck: true });
         if (!address && senderAccount) {
@@ -1392,6 +1413,9 @@ async function main() {
       .command('send <address> [amount] [token_address]')
       .description('Send ETH or ERC to address')
       .action(async (address, amount, tokenAddress) => {
+        if (program.onlyrpc) {
+          privateRpc = true;
+        }
         torPort = program.tor;
         await init({ rpc: program.rpc, balanceCheck: true, localMode: program.local });
         await send({ address, amount, tokenAddress });
@@ -1400,6 +1424,9 @@ async function main() {
       .command('broadcast <signedTX>')
       .description('Submit signed TX to the remote node')
       .action(async (signedTX) => {
+        if (program.onlyrpc) {
+          privateRpc = true;
+        }
         torPort = program.tor;
         await init({ rpc: program.rpc, balanceCheck: true });
         await submitTransaction(signedTX);
@@ -1410,6 +1437,9 @@ async function main() {
         'Shows the deposit and withdrawal of the provided note. This might be necessary to show the origin of assets held in your withdrawal address.'
       )
       .action(async (noteString) => {
+        if (program.onlyrpc) {
+          privateRpc = true;
+        }
         const { currency, amount, netId, deposit } = parseNote(noteString);
         torPort = program.tor;
         await init({ rpc: program.rpc, noteNetId: netId, currency, amount });
@@ -1445,6 +1475,9 @@ async function main() {
         'Sync the local cache file of deposit / withdrawal events for specific currency.'
       )
       .action(async (type, currency, amount) => {
+        if (program.onlyrpc) {
+          privateRpc = true;
+        }
         console.log("Starting event sync command");
         currency = currency.toLowerCase();
         torPort = program.tor;
@@ -1456,6 +1489,7 @@ async function main() {
       .command('test')
       .description('Perform an automated test. It deposits and withdraws one ETH and one ERC20 note. Uses ganache.')
       .action(async () => {
+        privateRpc = true;
         console.log('Start performing ETH deposit-withdraw test');
         let currency = 'eth';
         let amount = '0.1';

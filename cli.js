@@ -65,7 +65,7 @@ async function printERC20Balance({ address, name, tokenAddress }) {
   let tokenDecimals, tokenBalance, tokenName, tokenSymbol;
   const erc20ContractJson = require('./build/contracts/ERC20Mock.json');
   erc20 = tokenAddress ? new web3.eth.Contract(erc20ContractJson.abi, tokenAddress) : erc20;
-  if (!isTestRPC && !multiCall) {
+  if (!isTestRPC && multiCall) {
     const tokenCall = await useMultiCall([[tokenAddress, erc20.methods.balanceOf(address).encodeABI()], [tokenAddress, erc20.methods.decimals().encodeABI()], [tokenAddress, erc20.methods.name().encodeABI()], [tokenAddress, erc20.methods.symbol().encodeABI()]]);
     tokenDecimals = parseInt(tokenCall[1]);
     tokenBalance = new BigNumber(tokenCall[0]).div(BigNumber(10).pow(tokenDecimals));
@@ -300,7 +300,7 @@ async function generateMerkleProof(deposit, currency, amount) {
   // Validate that our data is correct
   const root = tree.root();
   let isValidRoot, isSpent;
-  if (!isTestRPC && !multiCall) {
+  if (!isTestRPC && multiCall) {
     const callContract = await useMultiCall([[tornadoContract._address, tornadoContract.methods.isKnownRoot(toHex(root)).encodeABI()], [tornadoContract._address, tornadoContract.methods.isSpent(toHex(deposit.nullifierHash)).encodeABI()]])
     isValidRoot = web3.eth.abi.decodeParameter('bool', callContract[0]);
     isSpent = web3.eth.abi.decodeParameter('bool', callContract[1]);
@@ -308,7 +308,7 @@ async function generateMerkleProof(deposit, currency, amount) {
     isValidRoot = await tornadoContract.methods.isKnownRoot(toHex(root)).call();
     isSpent = await tornadoContract.methods.isSpent(toHex(deposit.nullifierHash)).call();
   }
-  assert(isValidRoot === true, 'Merkle tree is corrupted');
+  assert(isValidRoot === true, 'Merkle tree is corrupted. Some events could be missing, please try again.');
   assert(isSpent === false, 'The note is already spent');
   assert(leafIndex >= 0, 'The deposit is not found in the tree');
 
@@ -459,7 +459,7 @@ async function send({ address, amount, tokenAddress }) {
     const erc20ContractJson = require('./build/contracts/ERC20Mock.json');
     erc20 = new web3.eth.Contract(erc20ContractJson.abi, tokenAddress);
     let tokenBalance, tokenDecimals, tokenSymbol;
-    if (!isTestRPC && !multiCall) {
+    if (!isTestRPC && multiCall) {
       const callToken = await useMultiCall([[tokenAddress, erc20.methods.balanceOf(senderAccount).encodeABI()], [tokenAddress, erc20.methods.decimals().encodeABI()], [tokenAddress, erc20.methods.symbol().encodeABI()]]);
       tokenBalance = new BigNumber(callToken[0]);
       tokenDecimals = parseInt(callToken[1]);
@@ -905,7 +905,7 @@ async function fetchEvents({ type, currency, amount }) {
       options = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:' + torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } };
     }
 
-    async function queryLatestTimestamp() {
+    async function queryLatestBlockNumber() {
       try {
         const variables = {
           currency: currency.toString(),
@@ -915,8 +915,8 @@ async function fetchEvents({ type, currency, amount }) {
           const query = {
             query: `
             query($currency: String, $amount: String){
-              deposits(first: 1, orderBy: timestamp, orderDirection: desc, where: {currency: $currency, amount: $amount}) {
-                timestamp
+              deposits(first: 1, orderBy: blockNumber, orderDirection: desc, where: {currency: $currency, amount: $amount}) {
+                blockNumber
               }
             }
             `,
@@ -924,14 +924,14 @@ async function fetchEvents({ type, currency, amount }) {
           }
           const querySubgraph = await axios.post(subgraph, query, options);
           const queryResult = querySubgraph.data.data.deposits;
-          const result = queryResult[0].timestamp;
+          const result = queryResult[0].blockNumber;
           return Number(result);
         } else {
           const query = {
             query: `
             query($currency: String, $amount: String){
-              withdrawals(first: 1, orderBy: timestamp, orderDirection: desc, where: {currency: $currency, amount: $amount}) {
-                timestamp
+              withdrawals(first: 1, orderBy: blockNumber, orderDirection: desc, where: {currency: $currency, amount: $amount}) {
+                blockNumber
               }
             }
             `,
@@ -939,7 +939,7 @@ async function fetchEvents({ type, currency, amount }) {
           }
           const querySubgraph = await axios.post(subgraph, query, options);
           const queryResult = querySubgraph.data.data.withdrawals;
-          const result = queryResult[0].timestamp;
+          const result = queryResult[0].blockNumber;
           return Number(result);
         }
       } catch (error) {
@@ -947,18 +947,18 @@ async function fetchEvents({ type, currency, amount }) {
       }
     }
 
-    async function queryFromGraph(timestamp) {
+    async function queryFromGraph(blockNumber) {
       try {
         const variables = {
           currency: currency.toString(),
           amount: amount.toString(),
-          timestamp: timestamp
+          blockNumber: blockNumber
         }
         if (type === "deposit") {
           const query = {
             query: `
-            query($currency: String, $amount: String, $timestamp: Int){
-              deposits(orderBy: timestamp, first: 1000, where: {currency: $currency, amount: $amount, timestamp_gt: $timestamp}) {
+            query($currency: String, $amount: String, $blockNumber: Int){
+              deposits(orderBy: blockNumber, first: 1000, where: {currency: $currency, amount: $amount, blockNumber_gte: $blockNumber}) {
                 blockNumber
                 transactionHash
                 commitment
@@ -984,8 +984,8 @@ async function fetchEvents({ type, currency, amount }) {
         } else {
           const query = {
             query: `
-            query($currency: String, $amount: String, $timestamp: Int){
-              withdrawals(orderBy: timestamp, first: 1000, where: {currency: $currency, amount: $amount, timestamp_gt: $timestamp}) {
+            query($currency: String, $amount: String, $blockNumber: Int){
+              withdrawals(orderBy: blockNumber, first: 1000, where: {currency: $currency, amount: $amount, blockNumber_gte: $blockNumber}) {
                 blockNumber
                 transactionHash
                 nullifier
@@ -1016,9 +1016,25 @@ async function fetchEvents({ type, currency, amount }) {
 
     async function updateCache(fetchedEvents) {
       try {
+        let events = [];
         const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`;
         const localEvents = await initJson(fileName);
-        const events = localEvents.concat(fetchedEvents);
+        const totalEvents = localEvents.concat(fetchedEvents);
+        if (type === "deposit") {
+          const commit = new Set();
+          events = totalEvents.filter((r) => {
+            const notSameCommit = commit.has(r.commitment);
+            commit.add(r.commitment);
+            return !notSameCommit;
+          });
+        } else {
+          const nullifi = new Set();
+          events = totalEvents.filter((r) => {
+            const notSameNull = nullifi.has(r.nullifierHash);
+            nullifi.add(r.nullifierHash);
+            return !notSameNull;
+          });
+        }
         await fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8');
       } catch (error) {
         throw new Error('Writing cache file failed:',error);
@@ -1027,29 +1043,30 @@ async function fetchEvents({ type, currency, amount }) {
 
     async function fetchGraphEvents() {
       console.log("Querying latest events from TheGraph");
-      const latestTimestamp = await queryLatestTimestamp();
-      if (latestTimestamp) {
-        const getCachedBlock = await web3.eth.getBlock(startBlock);
-        const cachedTimestamp = getCachedBlock.timestamp;
-        for (let i = cachedTimestamp; i < latestTimestamp;) {
+      const latestBlockNumber = await queryLatestBlockNumber();
+      if (latestBlockNumber) {
+        for (let i = startBlock; i < latestBlockNumber;) {
           const result = await queryFromGraph(i);
-          if (Object.keys(result).length === 0) {
-            i = latestTimestamp;
-          } else {
-            if (type === "deposit") {
-              const resultBlock = result[result.length - 1].blockNumber;
-              const resultTimestamp = result[result.length - 1].timestamp;
-              await updateCache(result);
-              i = resultTimestamp;
-              console.log("Fetched", amount, currency.toUpperCase(), type, "events to block:", Number(resultBlock));
+          if (Object.keys(result).length < 20) {
+            const block = new Set();
+            const filteredResult = result.filter((r) => {
+              const notSameBlock = block.has(r.blockNumber);
+              block.add(r.blockNumber);
+              return !notSameBlock;
+            });
+            if (Object.keys(filteredResult).length === 1) {
+              i = latestBlockNumber;
             } else {
               const resultBlock = result[result.length - 1].blockNumber;
-              const getResultBlock = await web3.eth.getBlock(resultBlock);
-              const resultTimestamp = getResultBlock.timestamp;
               await updateCache(result);
-              i = resultTimestamp;
+              i = resultBlock;
               console.log("Fetched", amount, currency.toUpperCase(), type, "events to block:", Number(resultBlock));
             }
+          } else {
+            const resultBlock = result[result.length - 1].blockNumber;
+            await updateCache(result);
+            i = resultBlock;
+            console.log("Fetched", amount, currency.toUpperCase(), type, "events to block:", Number(resultBlock));
           }
         }
       } else {
@@ -1059,7 +1076,7 @@ async function fetchEvents({ type, currency, amount }) {
     }
     await fetchGraphEvents();
   }
-  if (!privateRpc && !subgraph && !isTestRPC) {
+  if (!privateRpc && subgraph && !isTestRPC) {
     await syncGraphEvents();
   } else {
     await syncEvents();
@@ -1069,7 +1086,7 @@ async function fetchEvents({ type, currency, amount }) {
     const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`;
     const updatedEvents = await initJson(fileName);
     const updatedBlock = updatedEvents[updatedEvents.length - 1].blockNumber;
-    console.log("Cache updated for Tornado",type,amount,currency,"instance to block",updatedBlock,"successfully");
+    console.log("Cache updated for Tornado", type, amount, currency.toUpperCase(), "instance to block", updatedBlock);
     console.log(`Total ${type}s:`, updatedEvents.length);
     return updatedEvents;
   }

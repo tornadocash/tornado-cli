@@ -1347,7 +1347,7 @@ async function main() {
       .option('-r, --rpc <URL>', 'The RPC that CLI should interact with', 'http://localhost:8545')
       .option('-R, --relayer <URL>', 'Withdraw via relayer')
       .option('-T, --tor <PORT>', 'Optional tor port')
-      .option('-L, --local', 'Local Node - Does not submit signed transaction to the node')
+      .option('-L, --localtx', 'Local Node - Does not submit signed transaction to the node')
       .option('-o, --onlyrpc', 'Only rpc mode - Does not enable thegraph api nor remote ip detection');
     program
       .command('createNote <currency> <amount> <chainId>')
@@ -1364,12 +1364,29 @@ async function main() {
         'Submit a deposit of invoice from default eth account and return the resulting note.'
       )
       .action(async (invoice) => {
-        if (program.onlyrpc) {
+        let rpc, localtx;
+        if (process.env.RPC) {
+          rpc = process.env.RPC;
+        } else {
+          rpc = program.rpc;
+        }
+        if (process.env.TOR) {
+          torPort = process.env.TOR;
+        } else if (program.tor) {
+          torPort = program.tor;
+        }
+        if (process.env.LOCALTX) {
+          localtx = process.env.LOCALTX;
+        } else {
+          localtx = program.localtx;
+        }
+        if (process.env.ONLYRPC) {
+          privateRpc = true;
+        } else if (program.onlyrpc) {
           privateRpc = true;
         }
-        torPort = program.tor;
         const { currency, amount, netId, commitmentNote } = parseInvoice(invoice);
-        await init({ rpc: program.rpc, currency, amount, localMode: program.local });
+        await init({ rpc: rpc, currency, amount, localMode: localtx });
         console.log("Creating", currency.toUpperCase(), amount, "deposit for", netName, "Tornado Cash Instance");
         await deposit({ currency, amount, commitmentNote });
       });
@@ -1379,12 +1396,29 @@ async function main() {
         'Submit a deposit of specified currency and amount from default eth account and return the resulting note. The currency is one of (ETH|DAI|cDAI|USDC|cUSDC|USDT). The amount depends on currency, see config.js file or visit https://tornado.cash.'
       )
       .action(async (currency, amount) => {
-        if (program.onlyrpc) {
+        let rpc, localtx;
+        if (process.env.RPC) {
+          rpc = process.env.RPC;
+        } else {
+          rpc = program.rpc;
+        }
+        if (process.env.TOR) {
+          torPort = process.env.TOR;
+        } else if (program.tor) {
+          torPort = program.tor;
+        }
+        if (process.env.LOCALTX) {
+          localtx = process.env.LOCALTX;
+        } else {
+          localtx = program.localtx;
+        }
+        if (process.env.ONLYRPC) {
+          privateRpc = true;
+        } else if (program.onlyrpc) {
           privateRpc = true;
         }
         currency = currency.toLowerCase();
-        torPort = program.tor;
-        await init({ rpc: program.rpc, currency, amount, localMode: program.local });
+        await init({ rpc: rpc, currency, amount, localMode: localtx });
         await deposit({ currency, amount });
       });
     program
@@ -1393,30 +1427,64 @@ async function main() {
         'Withdraw a note to a recipient account using relayer or specified private key. You can exchange some of your deposit`s tokens to ETH during the withdrawal by specifing ETH_purchase (e.g. 0.01) to pay for gas in future transactions. Also see the --relayer option.'
       )
       .action(async (noteString, recipient, refund) => {
-        if (program.onlyrpc) {
+        let rpc, localtx, relayer;
+        if (process.env.RPC) {
+          rpc = process.env.RPC;
+        } else {
+          rpc = program.rpc;
+        }
+        if (process.env.TOR) {
+          torPort = process.env.TOR;
+        } else if (program.tor) {
+          torPort = program.tor;
+        }
+        if (process.env.LOCALTX) {
+          localtx = process.env.LOCALTX;
+        } else {
+          localtx = program.localtx;
+        }
+        if (process.env.ONLYRPC) {
+          privateRpc = true;
+        } else if (program.onlyrpc) {
           privateRpc = true;
         }
+        if (process.env.RELAYER) {
+          relayer = process.env.RELAYER;
+        } else {
+          relayer = program.relayer;
+        }
         const { currency, amount, netId, deposit } = parseNote(noteString);
-        torPort = program.tor;
-        await init({ rpc: program.rpc, noteNetId: netId, currency, amount, localMode: program.local });
+        await init({ rpc: rpc, noteNetId: netId, currency, amount, localMode: localtx });
         await withdraw({
           deposit,
           currency,
           amount,
           recipient,
           refund,
-          relayerURL: program.relayer
+          relayerURL: relayer
         });
       });
     program
       .command('balance [address] [token_address]')
       .description('Check ETH and ERC20 balance')
       .action(async (address, tokenAddress) => {
-        if (program.onlyrpc) {
+        let rpc;
+        if (process.env.RPC) {
+          rpc = process.env.RPC;
+        } else {
+          rpc = program.rpc;
+        }
+        if (process.env.TOR) {
+          torPort = process.env.TOR;
+        } else if (program.tor) {
+          torPort = program.tor;
+        }
+        if (process.env.ONLYRPC) {
+          privateRpc = true;
+        } else if (program.onlyrpc) {
           privateRpc = true;
         }
-        torPort = program.tor;
-        await init({ rpc: program.rpc, balanceCheck: true });
+        await init({ rpc: rpc, balanceCheck: true });
         if (!address && senderAccount) {
           console.log("Using address", senderAccount, "from private key");
           address = senderAccount;
@@ -1430,22 +1498,51 @@ async function main() {
       .command('send <address> [amount] [token_address]')
       .description('Send ETH or ERC to address')
       .action(async (address, amount, tokenAddress) => {
-        if (program.onlyrpc) {
+        let rpc, localtx;
+        if (process.env.RPC) {
+          rpc = process.env.RPC;
+        } else {
+          rpc = program.rpc;
+        }
+        if (process.env.TOR) {
+          torPort = process.env.TOR;
+        } else if (program.tor) {
+          torPort = program.tor;
+        }
+        if (process.env.LOCALTX) {
+          localtx = process.env.LOCALTX;
+        } else {
+          localtx = program.localtx;
+        }
+        if (process.env.ONLYRPC) {
+          privateRpc = true;
+        } else if (program.onlyrpc) {
           privateRpc = true;
         }
-        torPort = program.tor;
-        await init({ rpc: program.rpc, balanceCheck: true, localMode: program.local });
+        await init({ rpc: rpc, balanceCheck: true, localMode: localtx });
         await send({ address, amount, tokenAddress });
       });
     program
       .command('broadcast <signedTX>')
       .description('Submit signed TX to the remote node')
       .action(async (signedTX) => {
-        if (program.onlyrpc) {
+        let rpc;
+        if (process.env.RPC) {
+          rpc = process.env.RPC;
+        } else {
+          rpc = program.rpc;
+        }
+        if (process.env.TOR) {
+          torPort = process.env.TOR;
+        } else if (program.tor) {
+          torPort = program.tor;
+        }
+        if (process.env.ONLYRPC) {
+          privateRpc = true;
+        } else if (program.onlyrpc) {
           privateRpc = true;
         }
-        torPort = program.tor;
-        await init({ rpc: program.rpc, balanceCheck: true });
+        await init({ rpc: rpc, balanceCheck: true });
         await submitTransaction(signedTX);
       });
     program
@@ -1454,12 +1551,24 @@ async function main() {
         'Shows the deposit and withdrawal of the provided note. This might be necessary to show the origin of assets held in your withdrawal address.'
       )
       .action(async (noteString) => {
-        if (program.onlyrpc) {
+        let rpc;
+        if (process.env.RPC) {
+          rpc = process.env.RPC;
+        } else {
+          rpc = program.rpc;
+        }
+        if (process.env.TOR) {
+          torPort = process.env.TOR;
+        } else if (program.tor) {
+          torPort = program.tor;
+        }
+        if (process.env.ONLYRPC) {
+          privateRpc = true;
+        } else if (program.onlyrpc) {
           privateRpc = true;
         }
         const { currency, amount, netId, deposit } = parseNote(noteString);
-        torPort = program.tor;
-        await init({ rpc: program.rpc, noteNetId: netId, currency, amount });
+        await init({ rpc: rpc, noteNetId: netId, currency, amount });
         const depositInfo = await loadDepositData({ amount, currency, deposit });
         const depositDate = new Date(depositInfo.timestamp * 1000);
         console.log('\n=============Deposit=================');
@@ -1492,13 +1601,25 @@ async function main() {
         'Sync the local cache file of deposit / withdrawal events for specific currency.'
       )
       .action(async (type, currency, amount) => {
-        if (program.onlyrpc) {
+        let rpc;
+        if (process.env.RPC) {
+          rpc = process.env.RPC;
+        } else {
+          rpc = program.rpc;
+        }
+        if (process.env.TOR) {
+          torPort = process.env.TOR;
+        } else if (program.tor) {
+          torPort = program.tor;
+        }
+        if (process.env.ONLYRPC) {
+          privateRpc = true;
+        } else if (program.onlyrpc) {
           privateRpc = true;
         }
         console.log("Starting event sync command");
         currency = currency.toLowerCase();
-        torPort = program.tor;
-        await init({ rpc: program.rpc, type, currency, amount });
+        await init({ rpc: rpc, type, currency, amount });
         const cachedEvents = await fetchEvents({ type, currency, amount });
         console.log("Synced event for", type, amount, currency.toUpperCase(), netName, "Tornado instance to block", cachedEvents[cachedEvents.length - 1].blockNumber);
       });
@@ -1510,7 +1631,28 @@ async function main() {
         console.log('Start performing ETH deposit-withdraw test');
         let currency = 'eth';
         let amount = '0.1';
-        await init({ rpc: program.rpc, currency, amount });
+        let rpc, relayer;
+        if (process.env.RPC) {
+          rpc = process.env.RPC;
+        } else {
+          rpc = program.rpc;
+        }
+        if (process.env.TOR) {
+          torPort = process.env.TOR;
+        } else if (program.tor) {
+          torPort = program.tor;
+        }
+        if (process.env.ONLYRPC) {
+          privateRpc = true;
+        } else if (program.onlyrpc) {
+          privateRpc = true;
+        }
+        if (process.env.RELAYER) {
+          relayer = process.env.RELAYER;
+        } else {
+          relayer = program.relayer;
+        }
+        await init({ rpc: rpc, currency, amount });
         let noteString = await deposit({ currency, amount });
         let parsedNote = parseNote(noteString);
         await withdraw({
@@ -1518,13 +1660,13 @@ async function main() {
           currency,
           amount,
           recipient: senderAccount,
-          relayerURL: program.relayer
+          relayerURL: relayer
         });
 
         console.log('\nStart performing DAI deposit-withdraw test');
         currency = 'dai';
         amount = '100';
-        await init({ rpc: program.rpc, currency, amount });
+        await init({ rpc: rpc, currency, amount });
         noteString = await deposit({ currency, amount });
         parsedNote = parseNote(noteString);
         await withdraw({
@@ -1533,7 +1675,7 @@ async function main() {
           amount,
           recipient: senderAccount,
           refund: '0.02',
-          relayerURL: program.relayer
+          relayerURL: relayer
         });
       });
     try {

@@ -870,16 +870,20 @@ async function fetchEvents({ type, currency, amount }) {
   }
 
   const cachedEvents = loadCachedEvents({ type, currency, amount });
-  const startBlock = cachedEvents.lastBlock + 1;
+  let startBlock = cachedEvents.lastBlock + 1;
 
   console.log("Loaded cached",amount,currency.toUpperCase(),type,"events for",startBlock,"block");
   console.log("Fetching",amount,currency.toUpperCase(),type,"events for",netName,"network");
 
-  async function syncEvents() {
+  async function syncEvents(syncedBlock) {
     try {
       let targetBlock = await web3.eth.getBlockNumber();
       let chunks = 1000;
       console.log("Querying latest events from RPC");
+
+      if (syncedBlock) {
+        startBlock = syncedBlock + 1;
+      }
 
       for (let i = startBlock; i < targetBlock; i += chunks) {
         let fetchedEvents = [];
@@ -1126,13 +1130,14 @@ async function fetchEvents({ type, currency, amount }) {
             console.log("Fetched", amount, currency.toUpperCase(), type, "events to block:", Number(resultBlock));
           }
         }
+        return latestBlockNumber;
       } else {
         console.log("Fallback to web3 events");
-        await syncEvents();
+        return startBlock - 1;
       }
     }
-    await fetchGraphEvents();
-    await syncEvents();
+    const syncedBlock = await fetchGraphEvents();
+    await syncEvents(syncedBlock);
   }
   if (!privateRpc && subgraph && !isTestRPC) {
     await syncGraphEvents();

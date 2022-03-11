@@ -22,7 +22,7 @@ const { GasPriceOracle } = require('gas-price-oracle');
 const SocksProxyAgent = require('socks-proxy-agent');
 const is_ip_private = require('private-ip');
 
-let web3, torPort, tornado, tornadoContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId, netName, netSymbol, doNotSubmitTx, multiCall, privateRpc, subgraph;
+let web3, torPort, tornado, tornadoContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId, netName, netSymbol, doNotSubmitTx, multiCall, privateRpc, subgraph, isMobile;
 let MERKLE_TREE_HEIGHT, ETH_AMOUNT, TOKEN_AMOUNT, PRIVATE_KEY;
 
 /** Whether we are in a browser or node.js */
@@ -370,6 +370,22 @@ async function generateProof({ deposit, currency, amount, recipient, relayerAddr
     secret: deposit.secret,
     pathElements: pathElements,
     pathIndices: pathIndices
+  }
+
+  if (!groth16) {
+    const wasmMemory = isMobile ? 1000 : 2000;
+    // groth16 initialises a lot of Promises that will never be resolved, that's why we need to use process.exit to terminate the CLI
+    groth16 = await buildGroth16({ wasmInitialMemory: wasmMemory });
+  }
+
+  if (!circuit && !proving_key) {
+    if (inBrowser) {
+      circuit = await (await fetch('build/circuits/tornado.json')).json();
+      proving_key = await (await fetch('build/circuits/tornadoProvingKey.bin')).arrayBuffer();
+    } else {
+      circuit = require('./build/circuits/tornado.json');
+      proving_key = fs.readFileSync('build/circuits/tornadoProvingKey.bin').buffer;
+    }
   }
 
   console.log('Generating SNARK proof');
@@ -1250,8 +1266,6 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', balanceC
     });
     contractJson = await (await fetch('build/contracts/TornadoProxy.abi.json')).json();
     instanceJson = await (await fetch('build/contracts/Instance.abi.json')).json();
-    circuit = await (await fetch('build/circuits/tornado.json')).json();
-    proving_key = await (await fetch('build/circuits/tornadoProvingKey.bin')).arrayBuffer();
     MERKLE_TREE_HEIGHT = 20;
     ETH_AMOUNT = 1e18;
     TOKEN_AMOUNT = 1e19;
@@ -1297,8 +1311,6 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', balanceC
     }
     contractJson = require('./build/contracts/TornadoProxy.abi.json');
     instanceJson = require('./build/contracts/Instance.abi.json');
-    circuit = require('./build/circuits/tornado.json');
-    proving_key = fs.readFileSync('build/circuits/tornadoProvingKey.bin').buffer;
     MERKLE_TREE_HEIGHT = process.env.MERKLE_TREE_HEIGHT || 20;
     ETH_AMOUNT = process.env.ETH_AMOUNT;
     TOKEN_AMOUNT = process.env.TOKEN_AMOUNT;
@@ -1319,8 +1331,6 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100', balanceC
     erc20ContractJson = require('./build/contracts/ERC20Mock.json');
     erc20tornadoJson = require('./build/contracts/ERC20Tornado.json');
   }
-  // groth16 initialises a lot of Promises that will never be resolved, that's why we need to use process.exit to terminate the CLI
-  groth16 = await buildGroth16();
   netId = await web3.eth.net.getId();
   netName = getCurrentNetworkName();
   netSymbol = getCurrentNetworkSymbol();

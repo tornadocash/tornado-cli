@@ -469,6 +469,7 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, refu
     }
   } else {
     // using private key
+    assert(senderAccount, 'Private Key should be supplied through .env file if you want to make withdrawal without relayers');
 
     // check if the address of recepient matches with the account of provided private key from environment to prevent accidental use of deposit address for withdrawal transaction.
     assert(recipient.toLowerCase() == senderAccount.toLowerCase(), 'Withdrawal recepient mismatches with the account of provided private key from environment file');

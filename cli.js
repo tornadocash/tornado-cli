@@ -424,10 +424,13 @@ async function withdraw({ deposit, currency, amount, recipient, relayerURL, refu
     if (torPort) {
       options = { httpsAgent: new SocksProxyAgent('socks5h://127.0.0.1:' + torPort), headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0' } }
     }
-    const relayerStatus = await axios.get(relayerURL + '/status', options);
+    const [ relayerStatus, globalNetId ] = await Promise.all([
+      axios.get(relayerURL + '/status', options),
+      web3.eth.net.getId()
+    ]);
 
-    const { rewardAccount, relayerNetId, ethPrices, tornadoServiceFee } = relayerStatus.data
-    assert(relayerNetId === netId || relayerNetId === '*', 'This relay is for different network');
+    const { rewardAccount, netId, ethPrices, tornadoServiceFee } = relayerStatus.data
+    assert(netId === globalNetId || netId === '*', 'This relay is for different network');
     console.log('Relay address:', rewardAccount);
 
     const gasPrice = await fetchGasPrice();
@@ -781,7 +784,7 @@ function calculateFee({ currency, gasPrice, amount, refund, ethPrices, relayerSe
     Math.floor(relayerServiceFee) === Number(relayerServiceFee) ? 0 : relayerServiceFee.toString().split('.')[1].length;
   const roundDecimal = 10 ** decimalsPoint;
   const total = toBN(fromDecimals({ amount, decimals }));
-  const feePercent = total.mul(toBN(relayerServiceFee * roundDecimal)).div(toBN(roundDecimal * 100));
+  const feePercent = total.mul(toBN(Math.floor(relayerServiceFee * roundDecimal))).div(toBN(roundDecimal * 100));
   const expense = toBN(gasPrice).mul(toBN(5e5));
   let desiredFee;
   switch (currency) {

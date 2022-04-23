@@ -829,38 +829,26 @@ function waitForTxReceipt({ txHash, attempts = 60, delay = 1000 }) {
 }
 
 function initJson(file) {
-  return new Promise((resolve, reject) => {
-    fs.readFile(file, 'utf8', (error, data) => {
-      if (error) {
-        resolve([]);
-      }
-      try {
-        resolve(JSON.parse(data));
-      } catch (error) {
-        resolve([]);
-      }
-    });
-  });
+  if (fs.existsSync(file)) {
+    return JSON.parse(fs.readFileSync(file, { encoding: 'utf8' }));
+  }
+  return [];
 };
 
 function loadCachedEvents({ type, currency, amount }) {
-  try {
-    const module = require(`./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`);
+  const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`;
+  const events = initJson(fileName);
 
-    if (module) {
-      const events = module;
-
-      return {
-        events,
-        lastBlock: events[events.length - 1].blockNumber
-      }
-    }
-  } catch (err) {
-    console.log("Error fetching cached files, syncing from block", deployedBlockNumber);
+  if (events.length > 0) {
     return {
-      events: [],
-      lastBlock: deployedBlockNumber,
+      events,
+      lastBlock: events[events.length - 1].blockNumber
     }
+  }
+  console.log("Error fetching cached files, syncing from block", deployedBlockNumber);
+  return {
+    events: [],
+    lastBlock: deployedBlockNumber,
   }
 }
 
@@ -875,15 +863,11 @@ async function fetchEvents({ type, currency, amount }) {
   console.log("Loaded cached",amount,currency.toUpperCase(),type,"events for",startBlock,"block");
   console.log("Fetching",amount,currency.toUpperCase(),type,"events for",netName,"network");
 
-  async function syncEvents(syncedBlock) {
+  async function syncEvents() {
     try {
       let targetBlock = await web3.eth.getBlockNumber();
       let chunks = 1000;
       console.log("Querying latest events from RPC");
-
-      if (syncedBlock) {
-        startBlock = syncedBlock + 1;
-      }
 
       for (let i = startBlock; i < targetBlock; i += chunks) {
         let fetchedEvents = [];
@@ -941,12 +925,12 @@ async function fetchEvents({ type, currency, amount }) {
           }
         }
 
-        async function updateCache() {
+        function updateCache() {
           try {
             const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`;
-            const localEvents = await initJson(fileName);
+            const localEvents = initJson(fileName);
             const events = localEvents.concat(fetchedEvents);
-            await fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8');
+            fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8');
           } catch (error) {
             throw new Error('Writing cache file failed:',error);
           }
@@ -955,6 +939,7 @@ async function fetchEvents({ type, currency, amount }) {
         await updateCache();
       }
     } catch (error) {
+      console.error(error);
       throw new Error("Error while updating cache");
       process.exit(1);
     }
@@ -1075,11 +1060,11 @@ async function fetchEvents({ type, currency, amount }) {
       }
     }
 
-    async function updateCache(fetchedEvents) {
+    function updateCache(fetchedEvents) {
       try {
         let events = [];
         const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`;
-        const localEvents = await initJson(fileName);
+        const localEvents = initJson(fileName);
         const totalEvents = localEvents.concat(fetchedEvents);
         if (type === "deposit") {
           const commit = new Set();
@@ -1096,7 +1081,7 @@ async function fetchEvents({ type, currency, amount }) {
             return !notSameNull;
           });
         }
-        await fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8');
+        fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8');
       } catch (error) {
         throw new Error('Writing cache file failed:',error);
       }
@@ -1136,8 +1121,9 @@ async function fetchEvents({ type, currency, amount }) {
         return startBlock - 1;
       }
     }
-    const syncedBlock = await fetchGraphEvents();
-    await syncEvents(syncedBlock);
+    await fetchGraphEvents();
+    startBlock = loadCachedEvents({ type, currency, amount }).lastBlock + 1;
+    await syncEvents();
   }
   if (!privateRpc && subgraph && !isTestRPC) {
     await syncGraphEvents();

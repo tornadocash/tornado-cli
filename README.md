@@ -121,8 +121,12 @@ Backed up invoice as ./backup-tornadoInvoice-eth-0.1-5-0x1b680c7d.txt
 Creating deposit transaction with `depositInvoice` only requires valid deposit note created by `createNote` command, so that the deposit note could be stored without exposed anywhere.
 
 ```bash
-$ node cli.js depositInvoice <invoice>
+$ node cli.js depositInvoice <invoice> --rpc <rpc url> --tor <torPort>
 ```
+
+Note that `--tor <torPort>` is optional.
+
+For RPC nodes please refer to the list of public RPC nodes below.
 
 ##### Example:
 
@@ -144,8 +148,16 @@ Sender account balance is x.xxxxxxx ETH
 #### To withdraw, you will need deposit note that matches with your deposit transaction.
 
 ```bash
-$ node cli.js withdraw <note> <recipient>
+$ node cli.js withdraw <note> <recipient> --rpc <rpc url> --relayer <relayer url> --tor <torPort>
 ```
+
+Note that `--relayer <relayer url>`, `--tor <torPort>` is optional.
+
+If you want to use Tornado Cash relayer for your first withdrawal to your new ethereum account, please refer to the list of relayers below.
+
+If you don't need relayer while doing withdrawals, you must apply your withdrawal account's private key to `.env` file.
+
+Copy the `PRIVATE_KEY=` line of `.env.example` to `.env`, and add your private key behind the `=`.
 
 ##### Example:
 

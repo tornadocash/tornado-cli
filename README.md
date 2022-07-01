@@ -412,7 +412,7 @@ Infura API key fetched from https://rpc.info (Same one with Metamask)
       "rpcUrls":{
          "publicRpc1":{
             "name":"publicRpc1",
-            "url":"https://polygon-rpc.com"
+            "url":"https://rpc-mainnet.maticvigil.com"
          },
          "publicRpc2":{
             "name":"publicRpc2",

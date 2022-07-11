@@ -21,6 +21,8 @@ const program = require('commander');
 const { GasPriceOracle } = require('gas-price-oracle');
 const SocksProxyAgent = require('socks-proxy-agent');
 const is_ip_private = require('private-ip');
+const bip39 = require("bip39");
+const { hdkey } = require('ethereumjs-wallet');
 
 let web3, torPort, tornado, tornadoContract, tornadoInstance, circuit, proving_key, groth16, erc20, senderAccount, netId, netName, netSymbol, doNotSubmitTx, multiCall, privateRpc, subgraph;
 let MERKLE_TREE_HEIGHT, ETH_AMOUNT, TOKEN_AMOUNT, PRIVATE_KEY;
@@ -98,11 +100,11 @@ async function generateTransaction(to, encodedData, value = 0) {
 
   async function estimateGas() {
     const fetchedGas = await web3.eth.estimateGas({
-      from  : senderAccount,
-      to    : to,
-      value : value,
-      nonce : nonce,
-      data  : encodedData
+      from: senderAccount,
+      to: to,
+      value: value,
+      nonce: nonce,
+      data: encodedData
     });
     const bumped = Math.floor(fetchedGas * 1.3);
     return web3.utils.toHex(bumped);
@@ -117,32 +119,32 @@ async function generateTransaction(to, encodedData, value = 0) {
     // Generate EIP-1559 transaction
     if (netId == 1) {
       return {
-        to                   : to,
-        value                : value,
-        nonce                : nonce,
-        maxFeePerGas         : gasPrice,
-        maxPriorityFeePerGas : web3.utils.toHex(web3.utils.toWei('3', 'gwei')),
-        gas                  : gasLimit,
-        data                 : encodedData
+        to: to,
+        value: value,
+        nonce: nonce,
+        maxFeePerGas: gasPrice,
+        maxPriorityFeePerGas: web3.utils.toHex(web3.utils.toWei('3', 'gwei')),
+        gas: gasLimit,
+        data: encodedData
       }
     } else if (netId == 5 || netId == 137 || netId == 43114) {
       return {
-        to                   : to,
-        value                : value,
-        nonce                : nonce,
-        maxFeePerGas         : gasPrice,
-        maxPriorityFeePerGas : gasPrice,
-        gas                  : gasLimit,
-        data                 : encodedData
+        to: to,
+        value: value,
+        nonce: nonce,
+        maxFeePerGas: gasPrice,
+        maxPriorityFeePerGas: gasPrice,
+        gas: gasLimit,
+        data: encodedData
       }
     } else {
       return {
-        to       : to,
-        value    : value,
-        nonce    : nonce,
-        gasPrice : gasPrice,
-        gas      : gasLimit,
-        data     : encodedData
+        to: to,
+        value: value,
+        nonce: nonce,
+        gasPrice: gasPrice,
+        gas: gasLimit,
+        data: encodedData
       }
     }
   }
@@ -268,7 +270,7 @@ async function deposit({ currency, amount, commitmentNote }) {
     await printERC20Balance({ address: senderAccount, name: 'Sender account' });
   }
 
-  if(!commitmentNote) {
+  if (!commitmentNote) {
     return noteString;
   }
 }
@@ -815,8 +817,8 @@ async function fetchEvents({ type, currency, amount }) {
   const cachedEvents = loadCachedEvents({ type, currency, amount });
   const startBlock = cachedEvents.lastBlock + 1;
 
-  console.log("Loaded cached",amount,currency.toUpperCase(),type,"events for",startBlock,"block");
-  console.log("Fetching",amount,currency.toUpperCase(),type,"events for",netName,"network");
+  console.log("Loaded cached", amount, currency.toUpperCase(), type, "events for", startBlock, "block");
+  console.log("Fetching", amount, currency.toUpperCase(), type, "events for", netName, "network");
 
   async function syncEvents() {
     try {
@@ -854,7 +856,7 @@ async function fetchEvents({ type, currency, amount }) {
         }
 
         function mapLatestEvents() {
-          if (type === "deposit"){
+          if (type === "deposit") {
             mapDepositEvents();
           } else {
             mapWithdrawEvents();
@@ -873,7 +875,7 @@ async function fetchEvents({ type, currency, amount }) {
             toBlock: j,
           }).then(r => { fetchedEvents = fetchedEvents.concat(r); console.log("Fetched", amount, currency.toUpperCase(), type, "events to block:", j) }, err => { console.error(i + " failed fetching", type, "events from node", err); process.exit(1); }).catch(console.log);
 
-          if (type === "deposit"){
+          if (type === "deposit") {
             mapDepositEvents();
           } else {
             mapWithdrawEvents();
@@ -887,7 +889,7 @@ async function fetchEvents({ type, currency, amount }) {
             const events = localEvents.concat(fetchedEvents);
             await fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8');
           } catch (error) {
-            throw new Error('Writing cache file failed:',error);
+            throw new Error('Writing cache file failed:', error);
           }
         }
         await fetchWeb3Events(i);
@@ -1021,7 +1023,7 @@ async function fetchEvents({ type, currency, amount }) {
         const events = localEvents.concat(fetchedEvents);
         await fs.writeFileSync(fileName, JSON.stringify(events, null, 2), 'utf8');
       } catch (error) {
-        throw new Error('Writing cache file failed:',error);
+        throw new Error('Writing cache file failed:', error);
       }
     }
 
@@ -1069,7 +1071,7 @@ async function fetchEvents({ type, currency, amount }) {
     const fileName = `./cache/${netName.toLowerCase()}/${type}s_${currency}_${amount}.json`;
     const updatedEvents = await initJson(fileName);
     const updatedBlock = updatedEvents[updatedEvents.length - 1].blockNumber;
-    console.log("Cache updated for Tornado",type,amount,currency,"instance to block",updatedBlock,"successfully");
+    console.log("Cache updated for Tornado", type, amount, currency, "instance to block", updatedBlock, "successfully");
     console.log(`Total ${type}s:`, updatedEvents.length);
     return updatedEvents;
   }
@@ -1529,4 +1531,76 @@ async function main() {
   }
 }
 
-main();
+// main();
+
+function taskSplit({ amount, options }) {
+  options.sort().reverse()
+  optimalTask = {}
+  console.log("try to deposit ", amount, "via ", options)
+  console.log("optimal deposit are:")
+  for (var option of options) {
+    tmp = Math.floor(amount / option)
+    amount -= tmp * option
+    optimalTask[option] = tmp
+    console.log(tmp, "deposit via", option)
+  }
+  return optimalTask
+}
+
+function genCompactNote({ currency, amount, netId }) {
+  var mnemonic = bip39.generateMnemonic()
+  fs.writeFileSync(`./hd-torn-${currency}-${amount}-${netId}.txt`, mnemonic, 'utf8');
+  console.log("backup hd-torn note with seed: ", mnemonic)
+  console.log("this hierarchical deterministic note can generate multiple deposit.")
+
+  return mnemonic
+}
+
+
+function createMultipleDeposit({ mnemonic, amount }) {
+  let seed = bip39.mnemonicToSeedSync(mnemonic);
+  let hdwallet = hdkey.fromMasterSeed(seed);
+  let wallet_hdpath = "m/44'/60'/0'/0/";
+
+  let deposits = [];
+  for (let i = 0; i < amount; i++) {
+
+    let wallet1 = hdwallet.derivePath(wallet_hdpath + (i * 2)).getWallet();
+    let secretRaw = wallet1.getPrivateKey();
+    let secret = bigInt.leBuff2int(secretRaw.slice(1))
+
+    let wallet2 = hdwallet.derivePath(wallet_hdpath + (i * 2 + 1)).getWallet();
+    let nullifierRaw = wallet2.getPrivateKey();
+    let nullifier = bigInt.leBuff2int(nullifierRaw.slice(1))
+
+    let dep = createDeposit({ nullifier: nullifier, secret: secret })
+    deposits.push({ idx: i, deposit: dep });
+
+  }
+  return deposits;
+}
+
+function recoverDepositFromMnemonic({ mnemonic, idx }) {
+  let seed = bip39.mnemonicToSeedSync(mnemonic);
+  let hdwallet = hdkey.fromMasterSeed(seed);
+  let wallet_hdpath = "m/44'/60'/0'/0/";
+  let wallet1 = hdwallet.derivePath(wallet_hdpath + (idx * 2)).getWallet();
+  let secretRaw = wallet1.getPrivateKey();
+  let secret = bigInt.leBuff2int(secretRaw.slice(1))
+  let wallet2 = hdwallet.derivePath(wallet_hdpath + (idx * 2 + 1)).getWallet();
+  let nullifierRaw = wallet2.getPrivateKey();
+  let nullifier = bigInt.leBuff2int(nullifierRaw.slice(1))
+
+  let dep = createDeposit({ nullifier: nullifier, secret: secret })
+  return dep
+}
+
+
+tasks = taskSplit({ amount: 420.69, options: [0.1, 1, 10, 100,] })
+console.log(tasks)
+const mnemonic = genCompactNote({ currency: "ETH", amount: '420.69', netId: 1 })
+const amount = 3;
+const deposits = createMultipleDeposit({ mnemonic, amount });
+console.log(deposits);
+console.log(recoverDepositFromMnemonic({ mnemonic, idx: 0 }))
+console.log(recoverDepositFromMnemonic({ mnemonic, idx: 1 }))
